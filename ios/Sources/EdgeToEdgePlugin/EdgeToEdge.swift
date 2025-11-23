@@ -8,10 +8,18 @@ import UIKit
     private weak var viewController: UIViewController?
     private var currentStatusBarStyle: UIStatusBarStyle = .default
     private var isEdgeToEdgeEnabled = false
+    private var keyboardHeight: CGFloat = 0
+    private var isKeyboardVisible = false
+    private var keyboardListener: ((CGFloat, Bool, TimeInterval) -> Void)?
     
     @objc public init(viewController: UIViewController) {
         self.viewController = viewController
         super.init()
+        setupKeyboardNotifications()
+    }
+    
+    deinit {
+        removeKeyboardNotifications()
     }
     
     /// Enable edge-to-edge mode (content extends to screen edges)
@@ -181,5 +189,99 @@ import UIKit
         }
         
         return UIColor(red: red, green: green, blue: blue, alpha: alpha)
+    }
+    
+    // MARK: - Keyboard Methods
+    
+    /// Get current keyboard information
+    @objc public func getKeyboardInfo() -> [String: Any] {
+        return [
+            "height": keyboardHeight,
+            "isVisible": isKeyboardVisible
+        ]
+    }
+    
+    /// Set keyboard event listener
+    @objc public func setKeyboardListener(_ listener: @escaping (CGFloat, Bool, TimeInterval) -> Void) {
+        self.keyboardListener = listener
+    }
+    
+    /// Setup keyboard notifications
+    private func setupKeyboardNotifications() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(keyboardWillShow),
+            name: UIResponder.keyboardWillShowNotification,
+            object: nil
+        )
+        
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(keyboardWillHide),
+            name: UIResponder.keyboardWillHideNotification,
+            object: nil
+        )
+        
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(keyboardDidShow),
+            name: UIResponder.keyboardDidShowNotification,
+            object: nil
+        )
+        
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(keyboardDidHide),
+            name: UIResponder.keyboardDidHideNotification,
+            object: nil
+        )
+    }
+    
+    /// Remove keyboard notifications
+    private func removeKeyboardNotifications() {
+        NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardWillShowNotification, object: nil)
+        NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardWillHideNotification, object: nil)
+        NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardDidShowNotification, object: nil)
+        NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardDidHideNotification, object: nil)
+    }
+    
+    /// Keyboard will show handler
+    @objc private func keyboardWillShow(notification: NSNotification) {
+        if let keyboardFrame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect,
+           let duration = notification.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? TimeInterval {
+            
+            // Get safe area bottom (home indicator)
+            let safeAreaBottom = viewController?.view.safeAreaInsets.bottom ?? 0
+            
+            // Calculate actual keyboard height (excluding safe area)
+            let actualHeight = keyboardFrame.height - safeAreaBottom
+            
+            keyboardHeight = actualHeight
+            isKeyboardVisible = true
+            
+            // Notify listener
+            keyboardListener?(actualHeight, true, duration)
+        }
+    }
+    
+    /// Keyboard will hide handler
+    @objc private func keyboardWillHide(notification: NSNotification) {
+        if let duration = notification.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? TimeInterval {
+            keyboardHeight = 0
+            isKeyboardVisible = false
+            
+            // Notify listener
+            keyboardListener?(0, false, duration)
+        }
+    }
+    
+    /// Keyboard did show handler
+    @objc private func keyboardDidShow(notification: NSNotification) {
+        // Already handled in willShow
+    }
+    
+    /// Keyboard did hide handler
+    @objc private func keyboardDidHide(notification: NSNotification) {
+        // Already handled in willHide
     }
 }

@@ -9,6 +9,14 @@ import type {
 } from './definitions';
 
 export class EdgeToEdgeWeb extends WebPlugin implements EdgeToEdgePlugin {
+  private keyboardHeight = 0;
+  private keyboardVisible = false;
+
+  constructor() {
+    super();
+    this.setupKeyboardListener();
+  }
+
   async enable(): Promise<void> {
     console.log('[EdgeToEdge Web] Enable called - no-op on web platform');
     // Web doesn't support true edge-to-edge, but we can update meta tags
@@ -108,5 +116,60 @@ export class EdgeToEdgeWeb extends WebPlugin implements EdgeToEdgePlugin {
     document.body.removeChild(testDiv);
     
     return padding || 0;
+  }
+
+  async getKeyboardInfo(): Promise<{ height: number; isVisible: boolean }> {
+    return {
+      height: this.keyboardHeight,
+      isVisible: this.keyboardVisible,
+    };
+  }
+
+  private setupKeyboardListener(): void {
+    // Use Visual Viewport API to detect keyboard on mobile web
+    if (window.visualViewport) {
+      let lastHeight = window.visualViewport.height;
+
+      window.visualViewport.addEventListener('resize', () => {
+        const currentHeight = window.visualViewport!.height;
+        const heightDiff = lastHeight - currentHeight;
+
+        // Keyboard is likely showing if viewport height decreased significantly
+        if (heightDiff > 100) {
+          this.keyboardHeight = heightDiff;
+          this.keyboardVisible = true;
+
+          this.notifyListeners('keyboardWillShow', {
+            height: heightDiff,
+            isVisible: true,
+          });
+
+          this.notifyListeners('keyboardDidShow', {
+            height: heightDiff,
+            isVisible: true,
+          });
+        }
+        // Keyboard is likely hiding if viewport height increased
+        else if (heightDiff < -100) {
+          this.keyboardHeight = 0;
+          this.keyboardVisible = false;
+
+          this.notifyListeners('keyboardWillHide', {
+            height: 0,
+            isVisible: false,
+          });
+
+          this.notifyListeners('keyboardDidHide', {
+            height: 0,
+            isVisible: false,
+          });
+        }
+
+        lastHeight = currentHeight;
+      });
+    } else {
+      // Fallback for browsers without Visual Viewport API
+      console.log('[EdgeToEdge Web] Visual Viewport API not available - keyboard detection limited');
+    }
   }
 }

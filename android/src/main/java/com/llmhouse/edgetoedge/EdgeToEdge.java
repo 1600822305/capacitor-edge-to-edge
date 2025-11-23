@@ -199,4 +199,68 @@ public class EdgeToEdge {
         
         return result;
     }
+
+    /**
+     * Get keyboard information (height and visibility)
+     * Works on Android 11+ (API 30+) with IME insets
+     */
+    public JSObject getKeyboardInfo() {
+        JSObject result = new JSObject();
+        
+        View decorView = activity.getWindow().getDecorView();
+        WindowInsetsCompat windowInsets = ViewCompat.getRootWindowInsets(decorView);
+        
+        if (windowInsets != null) {
+            // Check IME (keyboard) visibility
+            boolean imeVisible = windowInsets.isVisible(WindowInsetsCompat.Type.ime());
+            
+            // Get IME height
+            Insets imeInsets = windowInsets.getInsets(WindowInsetsCompat.Type.ime());
+            int imeHeight = imeInsets.bottom;
+            
+            result.put("height", imeHeight);
+            result.put("isVisible", imeVisible);
+            
+            Logger.info(TAG, "Keyboard info - Height: " + imeHeight + "px, Visible: " + imeVisible);
+        } else {
+            // Fallback
+            result.put("height", 0);
+            result.put("isVisible", false);
+            
+            Logger.warn(TAG, "Could not get keyboard info, returning defaults");
+        }
+        
+        return result;
+    }
+
+    /**
+     * Setup keyboard insets listener
+     * This will notify when keyboard shows/hides
+     */
+    public void setupKeyboardListener(KeyboardListener listener) {
+        View decorView = activity.getWindow().getDecorView();
+        
+        ViewCompat.setOnApplyWindowInsetsListener(decorView, (v, insets) -> {
+            // Get IME (keyboard) insets
+            Insets imeInsets = insets.getInsets(WindowInsetsCompat.Type.ime());
+            boolean imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime());
+            int imeHeight = imeInsets.bottom;
+            
+            // Notify listener
+            if (listener != null) {
+                listener.onKeyboardChanged(imeHeight, imeVisible);
+            }
+            
+            return insets;
+        });
+        
+        Logger.info(TAG, "Keyboard listener setup complete");
+    }
+
+    /**
+     * Interface for keyboard change callbacks
+     */
+    public interface KeyboardListener {
+        void onKeyboardChanged(int height, boolean isVisible);
+    }
 }

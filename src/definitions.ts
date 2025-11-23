@@ -37,6 +37,39 @@ export interface EdgeToEdgePlugin {
    * @returns Inset values in pixels
    */
   getSystemBarInsets(): Promise<SystemBarInsetsResult>;
+
+  /**
+   * Get current keyboard height and visibility
+   * @returns Keyboard information
+   */
+  getKeyboardInfo(): Promise<KeyboardInfo>;
+
+  /**
+   * Add listener for keyboard events
+   * @param eventName - Event name ('keyboardWillShow' | 'keyboardWillHide' | 'keyboardDidShow' | 'keyboardDidHide')
+   * @param listenerFunc - Callback function
+   */
+  addListener(
+    eventName: 'keyboardWillShow',
+    listenerFunc: (event: KeyboardEvent) => void,
+  ): Promise<PluginListenerHandle>;
+  addListener(
+    eventName: 'keyboardWillHide',
+    listenerFunc: (event: KeyboardEvent) => void,
+  ): Promise<PluginListenerHandle>;
+  addListener(
+    eventName: 'keyboardDidShow',
+    listenerFunc: (event: KeyboardEvent) => void,
+  ): Promise<PluginListenerHandle>;
+  addListener(
+    eventName: 'keyboardDidHide',
+    listenerFunc: (event: KeyboardEvent) => void,
+  ): Promise<PluginListenerHandle>;
+
+  /**
+   * Remove all listeners for this plugin
+   */
+  removeAllListeners(): Promise<void>;
 }
 
 export interface TransparentBarsOptions {
@@ -81,6 +114,39 @@ export interface SystemBarAppearanceOptions {
    * - "dark": Dark buttons (for light backgrounds)
    */
   navigationBarStyle?: 'light' | 'dark';
+}
+
+export interface PluginListenerHandle {
+  remove: () => Promise<void>;
+}
+
+export interface KeyboardInfo {
+  /**
+   * Keyboard height in pixels
+   */
+  height: number;
+
+  /**
+   * Whether keyboard is currently visible
+   */
+  isVisible: boolean;
+}
+
+export interface KeyboardEvent {
+  /**
+   * Keyboard height in pixels
+   */
+  height: number;
+
+  /**
+   * Whether keyboard is visible
+   */
+  isVisible: boolean;
+
+  /**
+   * Animation duration in milliseconds (iOS only)
+   */
+  animationDuration?: number;
 }
 
 export interface SystemBarInsetsResult {

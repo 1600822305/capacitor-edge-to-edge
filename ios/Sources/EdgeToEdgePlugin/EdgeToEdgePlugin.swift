@@ -17,7 +17,8 @@ public class EdgeToEdgePlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "setTransparentSystemBars", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setSystemBarColors", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setSystemBarAppearance", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "getSystemBarInsets", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "getSystemBarInsets", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "getKeyboardInfo", returnType: CAPPluginReturnPromise)
     ]
     
     private var implementation: EdgeToEdge?
@@ -27,6 +28,32 @@ public class EdgeToEdgePlugin: CAPPlugin, CAPBridgedPlugin {
             return
         }
         implementation = EdgeToEdge(viewController: viewController)
+        
+        // Setup keyboard event listener
+        implementation?.setKeyboardListener { [weak self] height, isVisible, duration in
+            guard let self = self else { return }
+            
+            var event: [String: Any] = [
+                "height": height,
+                "isVisible": isVisible,
+                "animationDuration": duration * 1000 // Convert to milliseconds
+            ]
+            
+            // Send appropriate events
+            if isVisible {
+                self.notifyListeners("keyboardWillShow", data: event)
+                // Send didShow after a short delay to match native behavior
+                DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
+                    self.notifyListeners("keyboardDidShow", data: event)
+                }
+            } else {
+                self.notifyListeners("keyboardWillHide", data: event)
+                // Send didHide after animation completes
+                DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
+                    self.notifyListeners("keyboardDidHide", data: event)
+                }
+            }
+        }
     }
     
     /// Enable edge-to-edge mode
@@ -106,6 +133,28 @@ public class EdgeToEdgePlugin: CAPPlugin, CAPBridgedPlugin {
         var result: [String: Double] = [:]
         for (key, value) in insets {
             result[key] = Double(value)
+        }
+        
+        call.resolve(result)
+    }
+    
+    /// Get keyboard information
+    @objc func getKeyboardInfo(_ call: CAPPluginCall) {
+        guard let impl = implementation else {
+            call.reject("Plugin not initialized")
+            return
+        }
+        
+        let info = impl.getKeyboardInfo()
+        
+        // Convert CGFloat to Double for JavaScript
+        var result: [String: Any] = [:]
+        for (key, value) in info {
+            if let cgfloatValue = value as? CGFloat {
+                result[key] = Double(cgfloatValue)
+            } else {
+                result[key] = value
+            }
         }
         
         call.resolve(result)

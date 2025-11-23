@@ -9,6 +9,7 @@ A Capacitor plugin for implementing Android edge-to-edge display with native con
 ✅ **Custom Bar Colors** - Set any color with alpha support  
 ✅ **Light/Dark Icons** - Control icon appearance based on background  
 ✅ **Safe Area Insets** - Get system bar sizes for layout adjustment  
+✅ **Keyboard Detection** - Get keyboard height and listen to show/hide events  
 ✅ **Android 11-16 Support** - Compatible with API 30-36  
 ✅ **iOS 14+ Support** - Status bar control and safe area handling  
 ✅ **Web Platform Support** - Fallback implementation for web/PWA  
@@ -79,6 +80,39 @@ async function setupEdgeToEdge() {
   }
 }
 ```
+
+### Keyboard Handling
+
+```typescript
+import { EdgeToEdge } from 'capacitor-edge-to-edge';
+
+// Get current keyboard state
+const keyboardInfo = await EdgeToEdge.getKeyboardInfo();
+console.log('Keyboard height:', keyboardInfo.height);
+console.log('Is visible:', keyboardInfo.isVisible);
+
+// Listen to keyboard events
+EdgeToEdge.addListener('keyboardWillShow', (event) => {
+  console.log('Keyboard showing, height:', event.height);
+  
+  // Adjust your input container
+  const inputContainer = document.querySelector('.input-container');
+  inputContainer.style.transform = `translateY(-${event.height}px)`;
+});
+
+EdgeToEdge.addListener('keyboardWillHide', () => {
+  console.log('Keyboard hiding');
+  
+  // Reset position
+  const inputContainer = document.querySelector('.input-container');
+  inputContainer.style.transform = 'translateY(0)';
+});
+
+// Clean up when done
+EdgeToEdge.removeAllListeners();
+```
+
+For more keyboard examples, see [KEYBOARD_GUIDE.md](KEYBOARD_GUIDE.md).
 
 ### Theme Integration
 
@@ -207,6 +241,46 @@ const insets = await EdgeToEdge.getSystemBarInsets();
 //   left: number,            // Left safe area
 //   right: number            // Right safe area
 // }
+```
+
+### `getKeyboardInfo()`
+
+Get current keyboard height and visibility.
+
+```typescript
+const keyboardInfo = await EdgeToEdge.getKeyboardInfo();
+// Returns: {
+//   height: number,          // Keyboard height in pixels
+//   isVisible: boolean       // Whether keyboard is visible
+// }
+```
+
+### Keyboard Event Listeners
+
+Listen to keyboard show/hide events.
+
+```typescript
+// Available events:
+await EdgeToEdge.addListener('keyboardWillShow', (event) => {
+  // event.height: number
+  // event.isVisible: boolean
+  // event.animationDuration?: number (iOS only)
+});
+
+await EdgeToEdge.addListener('keyboardWillHide', (event) => {
+  // Fired when keyboard starts hiding
+});
+
+await EdgeToEdge.addListener('keyboardDidShow', (event) => {
+  // Fired when keyboard animation completes
+});
+
+await EdgeToEdge.addListener('keyboardDidHide', (event) => {
+  // Fired when keyboard is fully hidden
+});
+
+// Remove all listeners
+await EdgeToEdge.removeAllListeners();
 ```
 
 ## Platform Support
@@ -356,6 +430,12 @@ Created by [q1600822305](https://github.com/q1600822305)
 * [`setSystemBarColors(...)`](#setsystembarcolors)
 * [`setSystemBarAppearance(...)`](#setsystembarappearance)
 * [`getSystemBarInsets()`](#getsystembarinsets)
+* [`getKeyboardInfo()`](#getkeyboardinfo)
+* [`addListener('keyboardWillShow', ...)`](#addlistenerkeyboardwillshow-)
+* [`addListener('keyboardWillHide', ...)`](#addlistenerkeyboardwillhide-)
+* [`addListener('keyboardDidShow', ...)`](#addlistenerkeyboarddidshow-)
+* [`addListener('keyboardDidHide', ...)`](#addlistenerkeyboarddidhide-)
+* [`removeAllListeners()`](#removealllisteners)
 * [Interfaces](#interfaces)
 
 </docgen-index>
@@ -447,6 +527,96 @@ Get current system bar insets (for safe area handling)
 --------------------
 
 
+### getKeyboardInfo()
+
+```typescript
+getKeyboardInfo() => Promise<KeyboardInfo>
+```
+
+Get current keyboard height and visibility
+
+**Returns:** <code>Promise&lt;<a href="#keyboardinfo">KeyboardInfo</a>&gt;</code>
+
+--------------------
+
+
+### addListener('keyboardWillShow', ...)
+
+```typescript
+addListener(eventName: 'keyboardWillShow', listenerFunc: (event: KeyboardEvent) => void) => Promise<PluginListenerHandle>
+```
+
+Add listener for keyboard events
+
+| Param              | Type                                                                        | Description                                                                                       |
+| ------------------ | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| **`eventName`**    | <code>'keyboardWillShow'</code>                                             | - Event name ('keyboardWillShow' \| 'keyboardWillHide' \| 'keyboardDidShow' \| 'keyboardDidHide') |
+| **`listenerFunc`** | <code>(event: <a href="#keyboardevent">KeyboardEvent</a>) =&gt; void</code> | - Callback function                                                                               |
+
+**Returns:** <code>Promise&lt;<a href="#pluginlistenerhandle">PluginListenerHandle</a>&gt;</code>
+
+--------------------
+
+
+### addListener('keyboardWillHide', ...)
+
+```typescript
+addListener(eventName: 'keyboardWillHide', listenerFunc: (event: KeyboardEvent) => void) => Promise<PluginListenerHandle>
+```
+
+| Param              | Type                                                                        |
+| ------------------ | --------------------------------------------------------------------------- |
+| **`eventName`**    | <code>'keyboardWillHide'</code>                                             |
+| **`listenerFunc`** | <code>(event: <a href="#keyboardevent">KeyboardEvent</a>) =&gt; void</code> |
+
+**Returns:** <code>Promise&lt;<a href="#pluginlistenerhandle">PluginListenerHandle</a>&gt;</code>
+
+--------------------
+
+
+### addListener('keyboardDidShow', ...)
+
+```typescript
+addListener(eventName: 'keyboardDidShow', listenerFunc: (event: KeyboardEvent) => void) => Promise<PluginListenerHandle>
+```
+
+| Param              | Type                                                                        |
+| ------------------ | --------------------------------------------------------------------------- |
+| **`eventName`**    | <code>'keyboardDidShow'</code>                                              |
+| **`listenerFunc`** | <code>(event: <a href="#keyboardevent">KeyboardEvent</a>) =&gt; void</code> |
+
+**Returns:** <code>Promise&lt;<a href="#pluginlistenerhandle">PluginListenerHandle</a>&gt;</code>
+
+--------------------
+
+
+### addListener('keyboardDidHide', ...)
+
+```typescript
+addListener(eventName: 'keyboardDidHide', listenerFunc: (event: KeyboardEvent) => void) => Promise<PluginListenerHandle>
+```
+
+| Param              | Type                                                                        |
+| ------------------ | --------------------------------------------------------------------------- |
+| **`eventName`**    | <code>'keyboardDidHide'</code>                                              |
+| **`listenerFunc`** | <code>(event: <a href="#keyboardevent">KeyboardEvent</a>) =&gt; void</code> |
+
+**Returns:** <code>Promise&lt;<a href="#pluginlistenerhandle">PluginListenerHandle</a>&gt;</code>
+
+--------------------
+
+
+### removeAllListeners()
+
+```typescript
+removeAllListeners() => Promise<void>
+```
+
+Remove all listeners for this plugin
+
+--------------------
+
+
 ### Interfaces
 
 
@@ -484,5 +654,29 @@ Get current system bar insets (for safe area handling)
 | **`bottom`**        | <code>number</code> | Bottom safe area inset                          |
 | **`left`**          | <code>number</code> | Left safe area inset (for landscape/foldables)  |
 | **`right`**         | <code>number</code> | Right safe area inset (for landscape/foldables) |
+
+
+#### KeyboardInfo
+
+| Prop            | Type                 | Description                           |
+| --------------- | -------------------- | ------------------------------------- |
+| **`height`**    | <code>number</code>  | Keyboard height in pixels             |
+| **`isVisible`** | <code>boolean</code> | Whether keyboard is currently visible |
+
+
+#### PluginListenerHandle
+
+| Prop         | Type                                      |
+| ------------ | ----------------------------------------- |
+| **`remove`** | <code>() =&gt; Promise&lt;void&gt;</code> |
+
+
+#### KeyboardEvent
+
+| Prop                    | Type                 | Description                                   |
+| ----------------------- | -------------------- | --------------------------------------------- |
+| **`height`**            | <code>number</code>  | Keyboard height in pixels                     |
+| **`isVisible`**         | <code>boolean</code> | Whether keyboard is visible                   |
+| **`animationDuration`** | <code>number</code>  | Animation duration in milliseconds (iOS only) |
 
 </docgen-api>

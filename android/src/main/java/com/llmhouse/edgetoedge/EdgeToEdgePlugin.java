@@ -18,6 +18,39 @@ public class EdgeToEdgePlugin extends Plugin {
     @Override
     public void load() {
         implementation = new EdgeToEdge(getActivity());
+        
+        // Setup keyboard listener to send events to JavaScript
+        implementation.setupKeyboardListener(new EdgeToEdge.KeyboardListener() {
+            private int lastHeight = 0;
+            private boolean lastVisible = false;
+            
+            @Override
+            public void onKeyboardChanged(int height, boolean isVisible) {
+                // Only send events when state actually changes
+                boolean heightChanged = height != lastHeight;
+                boolean visibilityChanged = isVisible != lastVisible;
+                
+                if (heightChanged || visibilityChanged) {
+                    JSObject event = new JSObject();
+                    event.put("height", height);
+                    event.put("isVisible", isVisible);
+                    
+                    // Send appropriate events
+                    if (isVisible && !lastVisible) {
+                        // Keyboard showing
+                        notifyListeners("keyboardWillShow", event);
+                        notifyListeners("keyboardDidShow", event);
+                    } else if (!isVisible && lastVisible) {
+                        // Keyboard hiding
+                        notifyListeners("keyboardWillHide", event);
+                        notifyListeners("keyboardDidHide", event);
+                    }
+                    
+                    lastHeight = height;
+                    lastVisible = isVisible;
+                }
+            }
+        });
     }
 
     /**
@@ -80,6 +113,15 @@ public class EdgeToEdgePlugin extends Plugin {
     @PluginMethod
     public void getSystemBarInsets(PluginCall call) {
         JSObject result = implementation.getSystemBarInsets();
+        call.resolve(result);
+    }
+
+    /**
+     * Get keyboard information (height and visibility)
+     */
+    @PluginMethod
+    public void getKeyboardInfo(PluginCall call) {
+        JSObject result = implementation.getKeyboardInfo();
         call.resolve(result);
     }
 }
