@@ -1,6 +1,6 @@
 {
   "name": "capacitor-edge-to-edge",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A Capacitor plugin for implementing edge-to-edge display with transparent system bars. Supports Android 11-16 (API 30-36) and iOS 14+.",
   "main": "dist/plugin.cjs.js",
   "module": "dist/esm/index.js",
