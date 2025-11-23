@@ -1,0 +1,52 @@
+# Source files
+src/
+*.ts
+!*.d.ts
+
+# Build files
+tsconfig.json
+rollup.config.mjs
+
+# Development files
+.vscode/
+.idea/
+*.log
+node_modules/
+*.tgz
+
+# Testing
+example-app/
+android/src/androidTest/
+android/src/test/
+ios/Tests/
+
+# Documentation
+CONTRIBUTING.md
+*.md
+!README.md
+
+# Git
+.git/
+.gitignore
+.github/
+
+# Editor
+.DS_Store
+*.swp
+*.swo
+*~
+
+# Gradle (keep only necessary files)
+android/gradle/
+android/gradlew
+android/gradlew.bat
+android/.gradle/
+android/build/
+android/local.properties
+
+# iOS build files
+ios/Pods/
+ios/.build/
+*.xcworkspace
+*.xcodeproj
+DerivedData/

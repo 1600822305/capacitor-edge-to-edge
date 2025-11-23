@@ -1,6 +1,16 @@
 # capacitor-edge-to-edge
 
-A Capacitor plugin for implementing Android edge-to-edge display with transparent status bar and navigation bar support.
+A Capacitor plugin for implementing Android edge-to-edge display with native control over system bars (status bar and navigation bar).
+
+## Features
+
+✅ **Native Edge-to-Edge Mode** - Content draws behind system bars  
+✅ **Transparent System Bars** - Full control over transparency  
+✅ **Custom Bar Colors** - Set any color with alpha support  
+✅ **Light/Dark Icons** - Control icon appearance based on background  
+✅ **Safe Area Insets** - Get system bar sizes for layout adjustment  
+✅ **Android 11-16 Support** - Compatible with API 30-35  
+✅ **Web Platform Support** - Fallback implementation for web/PWA  
 
 ## Install
 
@@ -9,11 +19,404 @@ npm install capacitor-edge-to-edge
 npx cap sync
 ```
 
+## Usage
+
+### Basic Setup
+
+```typescript
+import { EdgeToEdge } from 'capacitor-edge-to-edge';
+
+// Enable edge-to-edge mode
+await EdgeToEdge.enable();
+
+// Make system bars transparent
+await EdgeToEdge.setTransparentSystemBars({
+  statusBar: true,
+  navigationBar: true
+});
+
+// Set dark icons for light backgrounds
+await EdgeToEdge.setSystemBarAppearance({
+  statusBarStyle: 'dark',
+  navigationBarStyle: 'dark'
+});
+```
+
+### Complete Example
+
+```typescript
+import { EdgeToEdge } from 'capacitor-edge-to-edge';
+
+async function setupEdgeToEdge() {
+  try {
+    // 1. Enable edge-to-edge mode
+    await EdgeToEdge.enable();
+    
+    // 2. Set transparent system bars
+    await EdgeToEdge.setTransparentSystemBars({
+      statusBar: true,
+      navigationBar: true
+    });
+    
+    // 3. Configure appearance (light icons for dark backgrounds)
+    await EdgeToEdge.setSystemBarAppearance({
+      statusBarStyle: 'light',
+      navigationBarStyle: 'light'
+    });
+    
+    // 4. Get system bar insets for safe area handling
+    const insets = await EdgeToEdge.getSystemBarInsets();
+    console.log('Status bar height:', insets.statusBar);
+    console.log('Navigation bar height:', insets.navigationBar);
+    
+    // Apply padding to your content
+    document.body.style.paddingTop = `${insets.top}px`;
+    document.body.style.paddingBottom = `${insets.bottom}px`;
+    
+  } catch (error) {
+    console.error('Edge-to-edge setup failed:', error);
+  }
+}
+```
+
+### Theme Integration
+
+```typescript
+// Light mode
+await EdgeToEdge.setSystemBarColors({
+  statusBarColor: '#FFFFFF',
+  navigationBarColor: '#FFFFFF'
+});
+await EdgeToEdge.setSystemBarAppearance({
+  statusBarStyle: 'dark',  // Dark icons on light background
+  navigationBarStyle: 'dark'
+});
+
+// Dark mode
+await EdgeToEdge.setSystemBarColors({
+  statusBarColor: '#000000',
+  navigationBarColor: '#000000'
+});
+await EdgeToEdge.setSystemBarAppearance({
+  statusBarStyle: 'light',  // Light icons on dark background
+  navigationBarStyle: 'light'
+});
+
+// Semi-transparent overlay
+await EdgeToEdge.setSystemBarColors({
+  statusBarColor: '#80000000',  // 50% transparent black
+  navigationBarColor: '#80000000'
+});
+```
+
+### React/Vue/Angular Integration
+
+```typescript
+// React Hook Example
+import { useEffect } from 'react';
+import { EdgeToEdge } from 'capacitor-edge-to-edge';
+
+function useEdgeToEdge(theme: 'light' | 'dark') {
+  useEffect(() => {
+    const setupBars = async () => {
+      await EdgeToEdge.enable();
+      await EdgeToEdge.setTransparentSystemBars({ 
+        statusBar: true, 
+        navigationBar: true 
+      });
+      
+      const style = theme === 'dark' ? 'light' : 'dark';
+      await EdgeToEdge.setSystemBarAppearance({
+        statusBarStyle: style,
+        navigationBarStyle: style
+      });
+    };
+    
+    setupBars();
+  }, [theme]);
+}
+```
+
 ## API
 
-<docgen-index></docgen-index>
+### `enable()`
+
+Enable edge-to-edge mode. Content will draw behind system bars.
+
+```typescript
+await EdgeToEdge.enable();
+```
+
+### `disable()`
+
+Disable edge-to-edge mode. Content will be below system bars.
+
+```typescript
+await EdgeToEdge.disable();
+```
+
+### `setTransparentSystemBars(options)`
+
+Set system bars to transparent.
+
+```typescript
+await EdgeToEdge.setTransparentSystemBars({
+  statusBar: true,      // Make status bar transparent
+  navigationBar: true   // Make navigation bar transparent
+});
+```
+
+### `setSystemBarColors(options)`
+
+Set custom colors for system bars. Supports hex colors with alpha channel.
+
+```typescript
+await EdgeToEdge.setSystemBarColors({
+  statusBarColor: '#FF5733',      // Solid color
+  navigationBarColor: '#80000000' // 50% transparent black
+});
+```
+
+### `setSystemBarAppearance(options)`
+
+Control icon/text appearance on system bars.
+
+```typescript
+await EdgeToEdge.setSystemBarAppearance({
+  statusBarStyle: 'light',      // 'light' | 'dark'
+  navigationBarStyle: 'light'   // 'light' | 'dark'
+});
+```
+
+**Note**: 
+- `'light'` = Light icons (use for dark backgrounds)
+- `'dark'` = Dark icons (use for light backgrounds)
+
+### `getSystemBarInsets()`
+
+Get system bar sizes for safe area handling.
+
+```typescript
+const insets = await EdgeToEdge.getSystemBarInsets();
+// Returns: {
+//   statusBar: number,        // Status bar height
+//   navigationBar: number,    // Navigation bar height
+//   top: number,             // Top safe area
+//   bottom: number,          // Bottom safe area
+//   left: number,            // Left safe area
+//   right: number            // Right safe area
+// }
+```
+
+## Platform Support
+
+| Platform | Status | Notes |
+|----------|--------|-------|
+| **Android 11+** | ✅ Full Support | Native edge-to-edge with WindowInsetsController |
+| **Android 10** | ✅ Compat Mode | Using WindowInsetsControllerCompat |
+| **iOS** | ⚠️ Limited | Falls back to safe area meta tags |
+| **Web** | ⚠️ Limited | Meta tags and CSS safe-area-inset |
+
+## CSS Safe Area Support
+
+Add to your global CSS for proper safe area handling:
+
+```css
+body {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Or use CSS variables */
+:root {
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+}
+```
+
+## Android Configuration
+
+No additional configuration needed! The plugin handles everything automatically.
+
+## Comparison with Other Solutions
+
+| Feature | This Plugin | @capacitor/status-bar | @capawesome/edge-to-edge |
+|---------|-------------|----------------------|-------------------------|
+| Edge-to-edge mode | ✅ | ❌ | ✅ |
+| Transparent bars | ✅ | ⚠️ Limited | ✅ |
+| Custom colors | ✅ | ✅ | ✅ |
+| Icon appearance | ✅ | ✅ | ⚠️ Limited |
+| Inset detection | ✅ | ❌ | ⚠️ Limited |
+| Android 11-16 | ✅ | ✅ | ✅ |
+
+## Troubleshooting
+
+### Content appears behind system bars
+
+This is expected in edge-to-edge mode. Use `getSystemBarInsets()` to add appropriate padding:
+
+```typescript
+const insets = await EdgeToEdge.getSystemBarInsets();
+document.body.style.paddingTop = `${insets.top}px`;
+```
+
+### System bars not transparent
+
+Make sure to call both `enable()` and `setTransparentSystemBars()`:
+
+```typescript
+await EdgeToEdge.enable();
+await EdgeToEdge.setTransparentSystemBars({ 
+  statusBar: true, 
+  navigationBar: true 
+});
+```
+
+## License
+
+MIT
+
+## Credits
+
+Created by [q1600822305](https://github.com/q1600822305)
+
+<docgen-index>
+
+* [`enable()`](#enable)
+* [`disable()`](#disable)
+* [`setTransparentSystemBars(...)`](#settransparentsystembars)
+* [`setSystemBarColors(...)`](#setsystembarcolors)
+* [`setSystemBarAppearance(...)`](#setsystembarappearance)
+* [`getSystemBarInsets()`](#getsystembarinsets)
+* [Interfaces](#interfaces)
+
+</docgen-index>
 
 <docgen-api>
-<!-- run docgen to generate docs from the source -->
-<!-- More info: https://github.com/ionic-team/capacitor-docgen -->
+<!--Update the source file JSDoc comments and rerun docgen to update the docs below-->
+
+Capacitor Edge-to-Edge Plugin
+Provides native edge-to-edge display control for Android 11+ (API 30-35)
+
+### enable()
+
+```typescript
+enable() => Promise<void>
+```
+
+Enable edge-to-edge mode (content draws behind system bars)
+Supported on Android 11+ (API 30+)
+
+--------------------
+
+
+### disable()
+
+```typescript
+disable() => Promise<void>
+```
+
+Disable edge-to-edge mode (content below system bars)
+
+--------------------
+
+
+### setTransparentSystemBars(...)
+
+```typescript
+setTransparentSystemBars(options: TransparentBarsOptions) => Promise<void>
+```
+
+Set system bars to transparent
+
+| Param         | Type                                                                      | Description                        |
+| ------------- | ------------------------------------------------------------------------- | ---------------------------------- |
+| **`options`** | <code><a href="#transparentbarsoptions">TransparentBarsOptions</a></code> | Configuration for transparent bars |
+
+--------------------
+
+
+### setSystemBarColors(...)
+
+```typescript
+setSystemBarColors(options: SystemBarColorsOptions) => Promise<void>
+```
+
+Set system bar colors
+
+| Param         | Type                                                                      | Description         |
+| ------------- | ------------------------------------------------------------------------- | ------------------- |
+| **`options`** | <code><a href="#systembarcolorsoptions">SystemBarColorsOptions</a></code> | Color configuration |
+
+--------------------
+
+
+### setSystemBarAppearance(...)
+
+```typescript
+setSystemBarAppearance(options: SystemBarAppearanceOptions) => Promise<void>
+```
+
+Set system bar appearance (light/dark icons)
+
+| Param         | Type                                                                              | Description              |
+| ------------- | --------------------------------------------------------------------------------- | ------------------------ |
+| **`options`** | <code><a href="#systembarappearanceoptions">SystemBarAppearanceOptions</a></code> | Appearance configuration |
+
+--------------------
+
+
+### getSystemBarInsets()
+
+```typescript
+getSystemBarInsets() => Promise<SystemBarInsetsResult>
+```
+
+Get current system bar insets (for safe area handling)
+
+**Returns:** <code>Promise&lt;<a href="#systembarinsetsresult">SystemBarInsetsResult</a>&gt;</code>
+
+--------------------
+
+
+### Interfaces
+
+
+#### TransparentBarsOptions
+
+| Prop                | Type                 | Description                     | Default           |
+| ------------------- | -------------------- | ------------------------------- | ----------------- |
+| **`statusBar`**     | <code>boolean</code> | Make status bar transparent     | <code>true</code> |
+| **`navigationBar`** | <code>boolean</code> | Make navigation bar transparent | <code>true</code> |
+
+
+#### SystemBarColorsOptions
+
+| Prop                     | Type                | Description                                                        |
+| ------------------------ | ------------------- | ------------------------------------------------------------------ |
+| **`statusBarColor`**     | <code>string</code> | Status bar background color (hex format: #RRGGBB or #AARRGGBB)     |
+| **`navigationBarColor`** | <code>string</code> | Navigation bar background color (hex format: #RRGGBB or #AARRGGBB) |
+
+
+#### SystemBarAppearanceOptions
+
+| Prop                     | Type                           | Description                                                                                                                          |
+| ------------------------ | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| **`statusBarStyle`**     | <code>'light' \| 'dark'</code> | Status bar icon/text appearance - "light": Light icons/text (for dark backgrounds) - "dark": Dark icons/text (for light backgrounds) |
+| **`navigationBarStyle`** | <code>'light' \| 'dark'</code> | Navigation bar button appearance - "light": Light buttons (for dark backgrounds) - "dark": Dark buttons (for light backgrounds)      |
+
+
+#### SystemBarInsetsResult
+
+| Prop                | Type                | Description                                     |
+| ------------------- | ------------------- | ----------------------------------------------- |
+| **`statusBar`**     | <code>number</code> | Status bar height in pixels                     |
+| **`navigationBar`** | <code>number</code> | Navigation bar height in pixels                 |
+| **`top`**           | <code>number</code> | Top safe area inset                             |
+| **`bottom`**        | <code>number</code> | Bottom safe area inset                          |
+| **`left`**          | <code>number</code> | Left safe area inset (for landscape/foldables)  |
+| **`right`**         | <code>number</code> | Right safe area inset (for landscape/foldables) |
+
 </docgen-api>
