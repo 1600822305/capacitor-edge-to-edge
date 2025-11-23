@@ -8,7 +8,7 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 
 /**
  * Capacitor Edge-to-Edge Plugin
- * Provides native edge-to-edge display control for Android 11+ (API 30-35)
+ * Provides native edge-to-edge display control for Android 11-16 (API 30-36)
  */
 @CapacitorPlugin(name = "EdgeToEdge")
 public class EdgeToEdgePlugin extends Plugin {

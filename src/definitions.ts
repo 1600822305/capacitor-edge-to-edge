@@ -1,11 +1,11 @@
 /**
  * Capacitor Edge-to-Edge Plugin
- * Provides native edge-to-edge display control for Android 11+ (API 30-35)
+ * Provides native edge-to-edge display control for Android 11-16 (API 30-36)
  */
 export interface EdgeToEdgePlugin {
   /**
    * Enable edge-to-edge mode (content draws behind system bars)
-   * Supported on Android 11+ (API 30+)
+   * Supported on Android 11-16 (API 30-36)
    */
   enable(): Promise<void>;
 

@@ -20,7 +20,7 @@ import com.getcapacitor.Logger;
 import com.getcapacitor.JSObject;
 
 /**
- * EdgeToEdge implementation for Android 11+ (API 30-35)
+ * EdgeToEdge implementation for Android 11-16 (API 30-36)
  * Provides native control over system bars (status bar and navigation bar)
  */
 public class EdgeToEdge {
@@ -34,7 +34,7 @@ public class EdgeToEdge {
 
     /**
      * Enable edge-to-edge mode (content draws behind system bars)
-     * Works on Android 11+ (API 30+)
+     * Works on Android 11-16 (API 30-36)
      */
     public void enable() {
         activity.runOnUiThread(() -> {

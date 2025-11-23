@@ -9,7 +9,8 @@ A Capacitor plugin for implementing Android edge-to-edge display with native con
 ✅ **Custom Bar Colors** - Set any color with alpha support  
 ✅ **Light/Dark Icons** - Control icon appearance based on background  
 ✅ **Safe Area Insets** - Get system bar sizes for layout adjustment  
-✅ **Android 11-16 Support** - Compatible with API 30-35  
+✅ **Android 11-16 Support** - Compatible with API 30-36  
+✅ **iOS 14+ Support** - Status bar control and safe area handling  
 ✅ **Web Platform Support** - Fallback implementation for web/PWA  
 
 ## Install
@@ -212,10 +213,50 @@ const insets = await EdgeToEdge.getSystemBarInsets();
 
 | Platform | Status | Notes |
 |----------|--------|-------|
-| **Android 11+** | ✅ Full Support | Native edge-to-edge with WindowInsetsController |
+| **Android 11-16** | ✅ Full Support | Native edge-to-edge with WindowInsetsController (API 30-36) |
 | **Android 10** | ✅ Compat Mode | Using WindowInsetsControllerCompat |
-| **iOS** | ⚠️ Limited | Falls back to safe area meta tags |
+| **iOS 14+** | ✅ Full Support | Status bar appearance and safe area insets |
 | **Web** | ⚠️ Limited | Meta tags and CSS safe-area-inset |
+
+### Android 16 (API 36) Notes
+
+**Important Changes:**
+- Android 16 **fully enforces** edge-to-edge mode for apps targeting API 36
+- The `windowOptOutEdgeToEdgeEnforcement` attribute is **deprecated and disabled**
+- Apps can no longer opt-out of edge-to-edge display
+- This plugin is fully compatible with Android 16's enforcement requirements
+
+If you're migrating from Android 15 (API 35) to Android 16 (API 36):
+1. Remove any `windowOptOutEdgeToEdgeEnforcement` from your theme
+2. Ensure proper inset handling using `getSystemBarInsets()`
+3. Test your app layout with system bars overlaying content
+
+### iOS 14+ Notes
+
+**What's Supported:**
+- ✅ Status bar appearance (light/dark content)
+- ✅ Safe area insets detection (including notch and home indicator)
+- ✅ Background color changes
+- ⚠️ Status bar color is always transparent (iOS limitation)
+
+**iOS-Specific Configuration:**
+
+Add to your `Info.plist` for status bar control:
+```xml
+<key>UIViewControllerBasedStatusBarAppearance</key>
+<true/>
+```
+
+For edge-to-edge content on iOS:
+```swift
+// Content extends under status bar automatically
+// Use safe area insets to adjust your layout
+```
+
+**Platform Differences:**
+- iOS status bar is always transparent (system design)
+- Navigation bar refers to home indicator on iOS (not a top bar)
+- Safe area includes notch, Dynamic Island, and home indicator
 
 ## CSS Safe Area Support
 
@@ -249,7 +290,8 @@ No additional configuration needed! The plugin handles everything automatically.
 | Custom colors | ✅ | ✅ | ✅ |
 | Icon appearance | ✅ | ✅ | ⚠️ Limited |
 | Inset detection | ✅ | ❌ | ⚠️ Limited |
-| Android 11-16 | ✅ | ✅ | ✅ |
+| Android 11-16 (API 30-36) | ✅ | ✅ | ✅ |
+| iOS 14+ | ✅ | ✅ | ⚠️ Limited |
 
 ## Troubleshooting
 
@@ -272,6 +314,30 @@ await EdgeToEdge.setTransparentSystemBars({
   statusBar: true, 
   navigationBar: true 
 });
+```
+
+### iOS status bar not changing style
+
+Ensure `UIViewControllerBasedStatusBarAppearance` is set to `true` in `Info.plist`:
+
+```xml
+<key>UIViewControllerBasedStatusBarAppearance</key>
+<true/>
+```
+
+### iOS safe area insets not correct
+
+Make sure to call `getSystemBarInsets()` after the view has loaded:
+
+```typescript
+// In your component's mount/load lifecycle
+useEffect(() => {
+  const updateInsets = async () => {
+    const insets = await EdgeToEdge.getSystemBarInsets();
+    // Use insets
+  };
+  updateInsets();
+}, []);
 ```
 
 ## License
@@ -298,7 +364,7 @@ Created by [q1600822305](https://github.com/q1600822305)
 <!--Update the source file JSDoc comments and rerun docgen to update the docs below-->
 
 Capacitor Edge-to-Edge Plugin
-Provides native edge-to-edge display control for Android 11+ (API 30-35)
+Provides native edge-to-edge display control for Android 11-16 (API 30-36)
 
 ### enable()
 
@@ -307,7 +373,7 @@ enable() => Promise<void>
 ```
 
 Enable edge-to-edge mode (content draws behind system bars)
-Supported on Android 11+ (API 30+)
+Supported on Android 11-16 (API 30-36)
 
 --------------------
 
