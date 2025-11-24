@@ -273,7 +273,8 @@ public class EdgeToEdge {
             public WindowInsets onProgress(@NonNull WindowInsets insets, 
                                           @NonNull List<WindowInsetsAnimation> runningAnimations) {
                 // Called on every frame of the keyboard animation
-                Insets imeInsets = insets.getInsets(WindowInsets.Type.ime());
+                // Note: Use android.graphics.Insets for API 30+, not androidx.core.graphics.Insets
+                android.graphics.Insets imeInsets = insets.getInsets(WindowInsets.Type.ime());
                 boolean imeVisible = insets.isVisible(WindowInsets.Type.ime());
                 int imeHeight = imeInsets.bottom;
                 
@@ -322,6 +323,7 @@ public class EdgeToEdge {
         decorView.setWindowInsetsAnimationCallback(animationCallback);
         
         // Also set OnApplyWindowInsetsListener for initial state
+        // Note: Here we use WindowInsetsCompat which returns androidx.core.graphics.Insets
         ViewCompat.setOnApplyWindowInsetsListener(decorView, (v, insets) -> {
             Insets imeInsets = insets.getInsets(WindowInsetsCompat.Type.ime());
             boolean imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime());
