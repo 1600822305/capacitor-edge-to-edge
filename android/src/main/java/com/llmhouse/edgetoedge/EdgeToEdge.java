@@ -7,20 +7,15 @@ import android.util.DisplayMetrics;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowInsetsController;
-import android.widget.FrameLayout;
-import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
-import androidx.core.view.WindowInsetsAnimationCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Logger;
-
-import java.util.List;
 
 /**
  * EdgeToEdge implementation for Android 11-16 (API 30-36)
@@ -246,85 +241,55 @@ public class EdgeToEdge {
 
     /**
      * Setup keyboard insets listener
-     * Based on official @capacitor/keyboard implementation
-     * Uses WindowInsetsAnimationCompat for proper keyboard event handling
+     * Back to v1.1.1 simple implementation but with DIP conversion
+     * Simple OnApplyWindowInsetsListener works better than animation callbacks
      */
     public void setupKeyboardListener(KeyboardListener listener) {
-        FrameLayout content = activity.getWindow().getDecorView().findViewById(android.R.id.content);
-        View rootView = content.getRootView();
+        View decorView = activity.getWindow().getDecorView();
         
         // Get display metrics for DIP conversion
         DisplayMetrics dm = activity.getResources().getDisplayMetrics();
         final float density = dm.density;
         
-        // Setup WindowInsetsAnimationCompat callback
-        // Use CONTINUE_ON_SUBTREE to allow insets to propagate to WebView
-        // (Official @capacitor/keyboard uses STOP because it manually resizes content)
-        ViewCompat.setWindowInsetsAnimationCallback(
-            rootView,
-            new WindowInsetsAnimationCompat.Callback(WindowInsetsAnimationCompat.Callback.DISPATCH_MODE_CONTINUE_ON_SUBTREE) {
-                @NonNull
-                @Override
-                public WindowInsetsCompat onProgress(
-                    @NonNull WindowInsetsCompat insets,
-                    @NonNull List<WindowInsetsAnimationCompat> runningAnimations
-                ) {
-                    return insets;
-                }
-                
-                @NonNull
-                @Override
-                public WindowInsetsAnimationCompat.BoundsCompat onStart(
-                    @NonNull WindowInsetsAnimationCompat animation,
-                    @NonNull WindowInsetsAnimationCompat.BoundsCompat bounds
-                ) {
-                    WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(rootView);
-                    if (insets == null) {
-                        return super.onStart(animation, bounds);
-                    }
-                    
-                    boolean showingKeyboard = insets.isVisible(WindowInsetsCompat.Type.ime());
-                    int imeHeight = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom;
-                    
-                    // Convert to DIP (device independent pixels) like official plugin
-                    int keyboardHeightInDip = Math.round(imeHeight / density);
-                    
-                    if (listener != null) {
-                        listener.onKeyboardWillShow(keyboardHeightInDip, showingKeyboard);
-                    }
-                    
-                    Logger.info(TAG, "Keyboard will " + (showingKeyboard ? "show" : "hide") + 
-                               " - Height: " + keyboardHeightInDip + " dp (" + imeHeight + " px)");
-                    
-                    return super.onStart(animation, bounds);
-                }
-                
-                @Override
-                public void onEnd(@NonNull WindowInsetsAnimationCompat animation) {
-                    super.onEnd(animation);
-                    
-                    WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(rootView);
-                    if (insets == null) {
-                        return;
-                    }
-                    
-                    boolean showingKeyboard = insets.isVisible(WindowInsetsCompat.Type.ime());
-                    int imeHeight = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom;
-                    
-                    // Convert to DIP (device independent pixels) like official plugin
-                    int keyboardHeightInDip = Math.round(imeHeight / density);
-                    
-                    if (listener != null) {
-                        listener.onKeyboardDidShow(keyboardHeightInDip, showingKeyboard);
-                    }
-                    
-                    Logger.info(TAG, "Keyboard did " + (showingKeyboard ? "show" : "hide") + 
-                               " - Height: " + keyboardHeightInDip + " dp (" + imeHeight + " px)");
-                }
-            }
-        );
+        // Track previous state to avoid duplicate events
+        final int[] lastHeight = {0};
+        final boolean[] lastVisible = {false};
         
-        Logger.info(TAG, "Keyboard listener setup complete (Capacitor official style)");
+        ViewCompat.setOnApplyWindowInsetsListener(decorView, (v, insets) -> {
+            // Get IME (keyboard) insets
+            Insets imeInsets = insets.getInsets(WindowInsetsCompat.Type.ime());
+            boolean imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime());
+            int imeHeightPx = imeInsets.bottom;
+            
+            // Convert to DIP (device independent pixels) - This is the critical fix!
+            int imeHeightDip = Math.round(imeHeightPx / density);
+            
+            // Only notify if state actually changed (avoid duplicate events)
+            boolean heightChanged = imeHeightDip != lastHeight[0];
+            boolean visibilityChanged = imeVisible != lastVisible[0];
+            
+            if (heightChanged || visibilityChanged) {
+                // Update tracked state
+                lastHeight[0] = imeHeightDip;
+                lastVisible[0] = imeVisible;
+                
+                // Notify listener with both Will and Did events
+                if (listener != null) {
+                    // Send Will event
+                    listener.onKeyboardWillShow(imeHeightDip, imeVisible);
+                    // Send Did event
+                    listener.onKeyboardDidShow(imeHeightDip, imeVisible);
+                }
+                
+                Logger.info(TAG, "Keyboard state changed - Height: " + imeHeightDip + " dp (" + 
+                           imeHeightPx + " px), Visible: " + imeVisible);
+            }
+            
+            // IMPORTANT: Always return insets for proper consumption
+            return insets;
+        });
+        
+        Logger.info(TAG, "Keyboard listener setup complete (v1.1.1 style with DIP conversion)");
     }
 
     /**
