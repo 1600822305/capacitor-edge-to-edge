@@ -257,10 +257,12 @@ public class EdgeToEdge {
         DisplayMetrics dm = activity.getResources().getDisplayMetrics();
         final float density = dm.density;
         
-        // Setup WindowInsetsAnimationCompat callback (like official @capacitor/keyboard)
+        // Setup WindowInsetsAnimationCompat callback
+        // Use CONTINUE_ON_SUBTREE to allow insets to propagate to WebView
+        // (Official @capacitor/keyboard uses STOP because it manually resizes content)
         ViewCompat.setWindowInsetsAnimationCallback(
             rootView,
-            new WindowInsetsAnimationCompat.Callback(WindowInsetsAnimationCompat.Callback.DISPATCH_MODE_STOP) {
+            new WindowInsetsAnimationCompat.Callback(WindowInsetsAnimationCompat.Callback.DISPATCH_MODE_CONTINUE_ON_SUBTREE) {
                 @NonNull
                 @Override
                 public WindowInsetsCompat onProgress(
