@@ -8,22 +8,9 @@ import UIKit
  * Supports iOS 14+
  */
 @objc(EdgeToEdgePlugin)
-public class EdgeToEdgePlugin: CAPPlugin, CAPBridgedPlugin {
+public class EdgeToEdgePlugin: CAPPlugin {
     public let identifier = "EdgeToEdgePlugin"
     public let jsName = "EdgeToEdge"
-    
-    @objc override public class func pluginMethods() -> [Any] {
-        return [
-            CAPPluginMethod(name: "enable", returnType: CAPPluginReturnPromise),
-            CAPPluginMethod(name: "disable", returnType: CAPPluginReturnPromise),
-            CAPPluginMethod(name: "setSystemBarColor", returnType: CAPPluginReturnPromise),
-            CAPPluginMethod(name: "setSystemBarAppearance", returnType: CAPPluginReturnPromise),
-            CAPPluginMethod(name: "getSystemBarInsets", returnType: CAPPluginReturnPromise),
-            CAPPluginMethod(name: "getKeyboardInfo", returnType: CAPPluginReturnPromise),
-            CAPPluginMethod(name: "show", returnType: CAPPluginReturnPromise),
-            CAPPluginMethod(name: "hide", returnType: CAPPluginReturnPromise)
-        ]
-    }
     
     private var implementation: EdgeToEdge?
     

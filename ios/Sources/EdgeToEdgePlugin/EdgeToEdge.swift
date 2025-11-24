@@ -276,8 +276,8 @@ import UIKit
                 height = stageManagerOffset
             } else {
                 if let webView = viewController?.view,
-                   let window = webView.window,
-                   let screen = window.screen {
+                   let window = webView.window {
+                    let screen = window.screen
                     let webViewAbsolute = webView.convert(webView.frame, to: screen.coordinateSpace)
                     height = (webViewAbsolute.size.height + webViewAbsolute.origin.y) - (screen.bounds.size.height - keyboardFrame.size.height)
                     if height < 0 {
