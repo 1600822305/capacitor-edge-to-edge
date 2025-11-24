@@ -20,31 +20,34 @@ public class EdgeToEdgePlugin extends Plugin {
         implementation = new EdgeToEdge(getActivity());
         
         // Setup keyboard listener to send events to JavaScript
-        // Matches @capacitor/keyboard event structure
         implementation.setupKeyboardListener(new EdgeToEdge.KeyboardListener() {
-            @Override
-            public void onKeyboardWillShow(int height, boolean isVisible) {
-                // Send Will events (animation start)
-                JSObject event = new JSObject();
-                event.put("keyboardHeight", height);  // Match @capacitor/keyboard field name
-                
-                if (isVisible) {
-                    notifyListeners("keyboardWillShow", event);
-                } else {
-                    notifyListeners("keyboardWillHide", new JSObject());
-                }
-            }
+            private int lastHeight = 0;
+            private boolean lastVisible = false;
             
             @Override
-            public void onKeyboardDidShow(int height, boolean isVisible) {
-                // Send Did events (animation end)
-                JSObject event = new JSObject();
-                event.put("keyboardHeight", height);  // Match @capacitor/keyboard field name
+            public void onKeyboardChanged(int height, boolean isVisible) {
+                // Only send events when state actually changes
+                boolean heightChanged = height != lastHeight;
+                boolean visibilityChanged = isVisible != lastVisible;
                 
-                if (isVisible) {
-                    notifyListeners("keyboardDidShow", event);
-                } else {
-                    notifyListeners("keyboardDidHide", new JSObject());
+                if (heightChanged || visibilityChanged) {
+                    JSObject event = new JSObject();
+                    event.put("height", height);
+                    event.put("isVisible", isVisible);
+                    
+                    // Send appropriate events
+                    if (isVisible && !lastVisible) {
+                        // Keyboard showing
+                        notifyListeners("keyboardWillShow", event);
+                        notifyListeners("keyboardDidShow", event);
+                    } else if (!isVisible && lastVisible) {
+                        // Keyboard hiding
+                        notifyListeners("keyboardWillHide", event);
+                        notifyListeners("keyboardDidHide", event);
+                    }
+                    
+                    lastHeight = height;
+                    lastVisible = isVisible;
                 }
             }
         });

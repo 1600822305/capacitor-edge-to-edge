@@ -3,10 +3,12 @@ package com.llmhouse.edgetoedge;
 import android.app.Activity;
 import android.graphics.Color;
 import android.os.Build;
-import android.util.DisplayMetrics;
 import android.view.View;
 import android.view.Window;
+import android.view.WindowInsets;
 import android.view.WindowInsetsController;
+
+import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
@@ -14,8 +16,8 @@ import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 
-import com.getcapacitor.JSObject;
 import com.getcapacitor.Logger;
+import com.getcapacitor.JSObject;
 
 /**
  * EdgeToEdge implementation for Android 11-16 (API 30-36)
@@ -201,7 +203,6 @@ public class EdgeToEdge {
     /**
      * Get keyboard information (height and visibility)
      * Works on Android 11+ (API 30+) with IME insets
-     * Returns height in DIP (device independent pixels) like @capacitor/keyboard
      */
     public JSObject getKeyboardInfo() {
         JSObject result = new JSObject();
@@ -209,28 +210,21 @@ public class EdgeToEdge {
         View decorView = activity.getWindow().getDecorView();
         WindowInsetsCompat windowInsets = ViewCompat.getRootWindowInsets(decorView);
         
-        // Get display metrics for DIP conversion
-        DisplayMetrics dm = activity.getResources().getDisplayMetrics();
-        final float density = dm.density;
-        
         if (windowInsets != null) {
             // Check IME (keyboard) visibility
             boolean imeVisible = windowInsets.isVisible(WindowInsetsCompat.Type.ime());
             
-            // Get IME height in pixels
+            // Get IME height
             Insets imeInsets = windowInsets.getInsets(WindowInsetsCompat.Type.ime());
-            int imeHeightPx = imeInsets.bottom;
+            int imeHeight = imeInsets.bottom;
             
-            // Convert to DIP (device independent pixels)
-            int imeHeightDip = Math.round(imeHeightPx / density);
-            
-            result.put("keyboardHeight", imeHeightDip);
+            result.put("height", imeHeight);
             result.put("isVisible", imeVisible);
             
-            Logger.info(TAG, "Keyboard info - Height: " + imeHeightDip + " dp (" + imeHeightPx + " px), Visible: " + imeVisible);
+            Logger.info(TAG, "Keyboard info - Height: " + imeHeight + "px, Visible: " + imeVisible);
         } else {
             // Fallback
-            result.put("keyboardHeight", 0);
+            result.put("height", 0);
             result.put("isVisible", false);
             
             Logger.warn(TAG, "Could not get keyboard info, returning defaults");
@@ -241,74 +235,32 @@ public class EdgeToEdge {
 
     /**
      * Setup keyboard insets listener
-     * Back to v1.1.1 simple implementation but with DIP conversion
-     * Simple OnApplyWindowInsetsListener works better than animation callbacks
+     * This will notify when keyboard shows/hides
      */
     public void setupKeyboardListener(KeyboardListener listener) {
         View decorView = activity.getWindow().getDecorView();
-        
-        // Get display metrics for DIP conversion
-        DisplayMetrics dm = activity.getResources().getDisplayMetrics();
-        final float density = dm.density;
-        
-        // Track previous state to avoid duplicate events
-        final int[] lastHeight = {0};
-        final boolean[] lastVisible = {false};
         
         ViewCompat.setOnApplyWindowInsetsListener(decorView, (v, insets) -> {
             // Get IME (keyboard) insets
             Insets imeInsets = insets.getInsets(WindowInsetsCompat.Type.ime());
             boolean imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime());
-            int imeHeightPx = imeInsets.bottom;
+            int imeHeight = imeInsets.bottom;
             
-            // Convert to DIP (device independent pixels) - This is the critical fix!
-            int imeHeightDip = Math.round(imeHeightPx / density);
-            
-            // Only notify if state actually changed (avoid duplicate events)
-            boolean heightChanged = imeHeightDip != lastHeight[0];
-            boolean visibilityChanged = imeVisible != lastVisible[0];
-            
-            if (heightChanged || visibilityChanged) {
-                // Update tracked state
-                lastHeight[0] = imeHeightDip;
-                lastVisible[0] = imeVisible;
-                
-                // Notify listener with both Will and Did events
-                if (listener != null) {
-                    // Send Will event
-                    listener.onKeyboardWillShow(imeHeightDip, imeVisible);
-                    // Send Did event
-                    listener.onKeyboardDidShow(imeHeightDip, imeVisible);
-                }
-                
-                Logger.info(TAG, "Keyboard state changed - Height: " + imeHeightDip + " dp (" + 
-                           imeHeightPx + " px), Visible: " + imeVisible);
+            // Notify listener
+            if (listener != null) {
+                listener.onKeyboardChanged(imeHeight, imeVisible);
             }
             
-            // IMPORTANT: Always return insets for proper consumption
             return insets;
         });
         
-        Logger.info(TAG, "Keyboard listener setup complete (v1.1.1 style with DIP conversion)");
+        Logger.info(TAG, "Keyboard listener setup complete");
     }
 
     /**
      * Interface for keyboard change callbacks
-     * Matches @capacitor/keyboard event structure
      */
     public interface KeyboardListener {
-        /**
-         * Called when keyboard will show/hide (animation start)
-         * @param height keyboard height in DIP (device independent pixels)
-         * @param isVisible whether keyboard is becoming visible
-         */
-        void onKeyboardWillShow(int height, boolean isVisible);
-        
-        /**
-         * Called when keyboard did show/hide (animation end)
-         * @param height keyboard height in DIP (device independent pixels)  
-         * @param isVisible whether keyboard is visible
-         */
-        void onKeyboardDidShow(int height, boolean isVisible);
+        void onKeyboardChanged(int height, boolean isVisible);
     }
 }
