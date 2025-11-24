@@ -1,7 +1,7 @@
 {
-  "name": "capacitor-edge-to-edge",
-  "version": "1.6.2",
-  "description": "A Capacitor plugin for implementing edge-to-edge display with transparent system bars. Supports Android 11-16 (API 30-36) and iOS 14+.",
+  "name": "@capacitor/keyboard",
+  "version": "7.0.3",
+  "description": "The Keyboard API provides keyboard display and visibility control, along with event tracking when the keyboard shows and hides.",
   "main": "dist/plugin.cjs.js",
   "module": "dist/esm/index.js",
   "types": "dist/esm/index.d.ts",
@@ -13,63 +13,54 @@
     "ios/Sources",
     "ios/Tests",
     "Package.swift",
-    "CapacitorEdgeToEdge.podspec"
+    "CapacitorKeyboard.podspec"
   ],
-  "author": "q1600822305",
+  "author": "Ionic <hi@ionicframework.com>",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/q1600822305/capacitor-edge-to-edge.git"
+    "url": "git+https://github.com/ionic-team/capacitor-plugins.git"
   },
   "bugs": {
-    "url": "https://github.com/q1600822305/capacitor-edge-to-edge/issues"
+    "url": "https://github.com/ionic-team/capacitor-plugins/issues"
   },
   "keywords": [
     "capacitor",
     "plugin",
-    "native",
-    "edge-to-edge",
-    "android",
-    "status-bar",
-    "navigation-bar",
-    "system-bars",
-    "immersive",
-    "capacitor-plugin",
-    "transparent",
-    "insets"
+    "native"
   ],
   "scripts": {
     "verify": "npm run verify:ios && npm run verify:android && npm run verify:web",
-    "verify:ios": "xcodebuild -scheme CapacitorEdgeToEdge -destination generic/platform=iOS",
-    "verify:android": "cd android && gradlew clean build test && cd ..",
+    "verify:ios": "xcodebuild build -scheme CapacitorKeyboard -destination generic/platform=iOS",
+    "verify:android": "cd android && ./gradlew clean build test && cd ..",
     "verify:web": "npm run build",
     "lint": "npm run eslint && npm run prettier -- --check && npm run swiftlint -- lint",
     "fmt": "npm run eslint -- --fix && npm run prettier -- --write && npm run swiftlint -- --fix --format",
     "eslint": "eslint . --ext ts",
-    "prettier": "prettier \"**/*.{css,html,ts,js,java}\" --plugin=prettier-plugin-java",
+    "prettier": "prettier \"**/*.{css,html,ts,js,java}\"",
     "swiftlint": "node-swiftlint",
-    "docgen": "docgen --api EdgeToEdgePlugin --output-readme README.md --output-json dist/docs.json",
+    "docgen": "docgen --api KeyboardPlugin --output-readme README.md --output-json dist/docs.json",
     "build": "npm run clean && npm run docgen && tsc && rollup -c rollup.config.mjs",
     "clean": "rimraf ./dist",
     "watch": "tsc --watch",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "publish:cocoapod": "pod trunk push ./CapacitorKeyboard.podspec --allow-warnings"
   },
   "devDependencies": {
     "@capacitor/android": "^7.0.0",
+    "@capacitor/cli": "^7.0.0",
     "@capacitor/core": "^7.0.0",
-    "@capacitor/docgen": "^0.3.0",
+    "@capacitor/docgen": "0.2.2",
     "@capacitor/ios": "^7.0.0",
-    "@capacitor/keyboard": "^7.0.3",
-    "@capawesome/capacitor-android-edge-to-edge-support": "^7.2.3",
     "@ionic/eslint-config": "^0.4.0",
-    "@ionic/prettier-config": "^4.0.0",
-    "@ionic/swiftlint-config": "^2.0.0",
+    "@ionic/prettier-config": "~1.0.1",
+    "@ionic/swiftlint-config": "^1.1.2",
     "eslint": "^8.57.0",
-    "prettier": "^3.4.2",
-    "prettier-plugin-java": "^2.6.6",
+    "prettier": "~2.3.0",
+    "prettier-plugin-java": "~1.0.2",
     "rimraf": "^6.0.1",
-    "rollup": "^4.30.1",
-    "swiftlint": "^2.0.0",
+    "rollup": "^4.26.0",
+    "swiftlint": "^1.0.1",
     "typescript": "~4.1.5"
   },
   "peerDependencies": {
@@ -87,5 +78,9 @@
     "android": {
       "src": "android"
     }
-  }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "gitHead": "20f29ffc2234a89b18ddbb030c6deeda749c595c"
 }
