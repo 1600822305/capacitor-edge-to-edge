@@ -118,11 +118,24 @@ export class EdgeToEdgeWeb extends WebPlugin implements EdgeToEdgePlugin {
     return padding || 0;
   }
 
-  async getKeyboardInfo(): Promise<{ height: number; isVisible: boolean }> {
+  async getKeyboardInfo(): Promise<{ keyboardHeight: number; isVisible: boolean }> {
     return {
-      height: this.keyboardHeight,
+      keyboardHeight: this.keyboardHeight,
       isVisible: this.keyboardVisible,
     };
+  }
+
+  async show(): Promise<void> {
+    // Not supported on web
+    console.log('[EdgeToEdge Web] show() is not supported on web platform');
+  }
+
+  async hide(): Promise<void> {
+    // Try to blur any focused input element
+    const activeElement = document.activeElement;
+    if (activeElement && (activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement)) {
+      activeElement.blur();
+    }
   }
 
   private setupKeyboardListener(): void {
@@ -139,14 +152,13 @@ export class EdgeToEdgeWeb extends WebPlugin implements EdgeToEdgePlugin {
           this.keyboardHeight = heightDiff;
           this.keyboardVisible = true;
 
+          // Send events with keyboardHeight property (official Capacitor Keyboard plugin format)
           this.notifyListeners('keyboardWillShow', {
-            height: heightDiff,
-            isVisible: true,
+            keyboardHeight: heightDiff,
           });
 
           this.notifyListeners('keyboardDidShow', {
-            height: heightDiff,
-            isVisible: true,
+            keyboardHeight: heightDiff,
           });
         }
         // Keyboard is likely hiding if viewport height increased
@@ -155,13 +167,11 @@ export class EdgeToEdgeWeb extends WebPlugin implements EdgeToEdgePlugin {
           this.keyboardVisible = false;
 
           this.notifyListeners('keyboardWillHide', {
-            height: 0,
-            isVisible: false,
+            keyboardHeight: 0,
           });
 
           this.notifyListeners('keyboardDidHide', {
-            height: 0,
-            isVisible: false,
+            keyboardHeight: 0,
           });
         }
 

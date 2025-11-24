@@ -1,6 +1,6 @@
 {
   "name": "capacitor-edge-to-edge",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "A Capacitor plugin for implementing edge-to-edge display with transparent system bars. Supports Android 11-16 (API 30-36) and iOS 14+.",
   "main": "dist/plugin.cjs.js",
   "module": "dist/esm/index.js",
@@ -59,6 +59,8 @@
     "@capacitor/core": "^7.0.0",
     "@capacitor/docgen": "^0.3.0",
     "@capacitor/ios": "^7.0.0",
+    "@capacitor/keyboard": "^7.0.3",
+    "@capawesome/capacitor-android-edge-to-edge-support": "^7.2.3",
     "@ionic/eslint-config": "^0.4.0",
     "@ionic/prettier-config": "^4.0.0",
     "@ionic/swiftlint-config": "^2.0.0",

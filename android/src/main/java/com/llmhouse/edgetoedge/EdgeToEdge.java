@@ -1,12 +1,15 @@
 package com.llmhouse.edgetoedge;
 
 import android.app.Activity;
+import android.content.Context;
 import android.graphics.Color;
 import android.os.Build;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
+import android.view.inputmethod.InputMethodManager;
+import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
@@ -15,6 +18,10 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
+import androidx.core.view.WindowInsetsAnimationCompat;
+import android.util.DisplayMetrics;
+import androidx.annotation.NonNull;
+import java.util.List;
 
 import com.getcapacitor.Logger;
 import com.getcapacitor.JSObject;
@@ -203,6 +210,7 @@ public class EdgeToEdge {
     /**
      * Get keyboard information (height and visibility)
      * Works on Android 11+ (API 30+) with IME insets
+     * Returns height in DP units for consistency with official Capacitor Keyboard plugin
      */
     public JSObject getKeyboardInfo() {
         JSObject result = new JSObject();
@@ -214,17 +222,22 @@ public class EdgeToEdge {
             // Check IME (keyboard) visibility
             boolean imeVisible = windowInsets.isVisible(WindowInsetsCompat.Type.ime());
             
-            // Get IME height
+            // Get IME height in pixels
             Insets imeInsets = windowInsets.getInsets(WindowInsetsCompat.Type.ime());
-            int imeHeight = imeInsets.bottom;
+            int imeHeightPx = imeInsets.bottom;
             
-            result.put("height", imeHeight);
+            // Convert to DP for consistency
+            DisplayMetrics dm = activity.getResources().getDisplayMetrics();
+            final float density = dm.density;
+            int imeHeightDp = Math.round(imeHeightPx / density);
+            
+            result.put("keyboardHeight", imeHeightDp);
             result.put("isVisible", imeVisible);
             
-            Logger.info(TAG, "Keyboard info - Height: " + imeHeight + "px, Visible: " + imeVisible);
+            Logger.info(TAG, "Keyboard info - Height: " + imeHeightDp + "dp (" + imeHeightPx + "px), Visible: " + imeVisible);
         } else {
             // Fallback
-            result.put("height", 0);
+            result.put("keyboardHeight", 0);
             result.put("isVisible", false);
             
             Logger.warn(TAG, "Could not get keyboard info, returning defaults");
@@ -234,33 +247,123 @@ public class EdgeToEdge {
     }
 
     /**
-     * Setup keyboard insets listener
-     * This will notify when keyboard shows/hides
+     * Setup keyboard animation listener (official Capacitor Keyboard plugin approach)
+     * Uses WindowInsetsAnimationCompat.Callback for precise animation tracking
+     * This will notify when keyboard shows/hides with proper will/did events
      */
     public void setupKeyboardListener(KeyboardListener listener) {
-        View decorView = activity.getWindow().getDecorView();
+        FrameLayout content = activity.getWindow().getDecorView().findViewById(android.R.id.content);
+        View rootView = content.getRootView();
         
-        ViewCompat.setOnApplyWindowInsetsListener(decorView, (v, insets) -> {
-            // Get IME (keyboard) insets
-            Insets imeInsets = insets.getInsets(WindowInsetsCompat.Type.ime());
-            boolean imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime());
-            int imeHeight = imeInsets.bottom;
-            
-            // Notify listener
-            if (listener != null) {
-                listener.onKeyboardChanged(imeHeight, imeVisible);
+        ViewCompat.setWindowInsetsAnimationCallback(
+            rootView,
+            new WindowInsetsAnimationCompat.Callback(WindowInsetsAnimationCompat.Callback.DISPATCH_MODE_STOP) {
+                @NonNull
+                @Override
+                public WindowInsetsCompat onProgress(
+                    @NonNull WindowInsetsCompat insets,
+                    @NonNull List<WindowInsetsAnimationCompat> runningAnimations
+                ) {
+                    return insets;
+                }
+
+                @NonNull
+                @Override
+                public WindowInsetsAnimationCompat.BoundsCompat onStart(
+                    @NonNull WindowInsetsAnimationCompat animation,
+                    @NonNull WindowInsetsAnimationCompat.BoundsCompat bounds
+                ) {
+                    boolean showingKeyboard = ViewCompat.getRootWindowInsets(rootView).isVisible(WindowInsetsCompat.Type.ime());
+                    WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(rootView);
+                    int imeHeightPx = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom;
+                    
+                    // Convert to DP
+                    DisplayMetrics dm = activity.getResources().getDisplayMetrics();
+                    final float density = dm.density;
+                    int imeHeightDp = Math.round(imeHeightPx / density);
+
+                    if (listener != null) {
+                        if (showingKeyboard) {
+                            listener.onKeyboardWillShow(imeHeightDp);
+                        } else {
+                            listener.onKeyboardWillHide();
+                        }
+                    }
+                    return super.onStart(animation, bounds);
+                }
+
+                @Override
+                public void onEnd(@NonNull WindowInsetsAnimationCompat animation) {
+                    super.onEnd(animation);
+                    boolean showingKeyboard = ViewCompat.getRootWindowInsets(rootView).isVisible(WindowInsetsCompat.Type.ime());
+                    WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(rootView);
+                    int imeHeightPx = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom;
+                    
+                    // Convert to DP
+                    DisplayMetrics dm = activity.getResources().getDisplayMetrics();
+                    final float density = dm.density;
+                    int imeHeightDp = Math.round(imeHeightPx / density);
+
+                    if (listener != null) {
+                        if (showingKeyboard) {
+                            listener.onKeyboardDidShow(imeHeightDp);
+                        } else {
+                            listener.onKeyboardDidHide();
+                        }
+                    }
+                }
             }
-            
-            return insets;
-        });
+        );
         
-        Logger.info(TAG, "Keyboard listener setup complete");
+        Logger.info(TAG, "Keyboard animation listener setup complete (Capacitor Keyboard official approach)");
+    }
+
+    /**
+     * Show the keyboard (Android only)
+     * Based on official Capacitor Keyboard plugin
+     */
+    public void showKeyboard() {
+        activity.runOnUiThread(() -> {
+            View currentFocus = activity.getCurrentFocus();
+            if (currentFocus != null) {
+                InputMethodManager imm = (InputMethodManager) activity.getSystemService(Context.INPUT_METHOD_SERVICE);
+                imm.showSoftInput(currentFocus, 0);
+                Logger.info(TAG, "Keyboard show requested");
+            } else {
+                Logger.warn(TAG, "Cannot show keyboard - no focused view");
+            }
+        });
+    }
+
+    /**
+     * Hide the keyboard
+     * Based on official Capacitor Keyboard plugin
+     */
+    public boolean hideKeyboard() {
+        final boolean[] result = {false};
+        activity.runOnUiThread(() -> {
+            InputMethodManager imm = (InputMethodManager) activity.getSystemService(Context.INPUT_METHOD_SERVICE);
+            View currentFocus = activity.getCurrentFocus();
+            if (currentFocus == null) {
+                Logger.warn(TAG, "Cannot hide keyboard - no focused view");
+                result[0] = false;
+            } else {
+                imm.hideSoftInputFromWindow(currentFocus.getWindowToken(), InputMethodManager.HIDE_NOT_ALWAYS);
+                Logger.info(TAG, "Keyboard hide requested");
+                result[0] = true;
+            }
+        });
+        return result[0];
     }
 
     /**
      * Interface for keyboard change callbacks
+     * Based on official Capacitor Keyboard plugin events
      */
     public interface KeyboardListener {
-        void onKeyboardChanged(int height, boolean isVisible);
+        void onKeyboardWillShow(int keyboardHeight);
+        void onKeyboardDidShow(int keyboardHeight);
+        void onKeyboardWillHide();
+        void onKeyboardDidHide();
     }
 }

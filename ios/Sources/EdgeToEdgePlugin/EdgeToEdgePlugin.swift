@@ -11,15 +11,19 @@ import UIKit
 public class EdgeToEdgePlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "EdgeToEdgePlugin"
     public let jsName = "EdgeToEdge"
-    public let pluginMethods: [CAPPluginMethod] = [
-        CAPPluginMethod(name: "enable", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "disable", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "setTransparentSystemBars", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "setSystemBarColors", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "setSystemBarAppearance", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "getSystemBarInsets", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "getKeyboardInfo", returnType: CAPPluginReturnPromise)
-    ]
+    
+    @objc override public class func pluginMethods() -> [Any] {
+        return [
+            CAPPluginMethod(name: "enable", returnType: CAPPluginReturnPromise),
+            CAPPluginMethod(name: "disable", returnType: CAPPluginReturnPromise),
+            CAPPluginMethod(name: "setSystemBarColor", returnType: CAPPluginReturnPromise),
+            CAPPluginMethod(name: "setSystemBarAppearance", returnType: CAPPluginReturnPromise),
+            CAPPluginMethod(name: "getSystemBarInsets", returnType: CAPPluginReturnPromise),
+            CAPPluginMethod(name: "getKeyboardInfo", returnType: CAPPluginReturnPromise),
+            CAPPluginMethod(name: "show", returnType: CAPPluginReturnPromise),
+            CAPPluginMethod(name: "hide", returnType: CAPPluginReturnPromise)
+        ]
+    }
     
     private var implementation: EdgeToEdge?
     
@@ -29,30 +33,51 @@ public class EdgeToEdgePlugin: CAPPlugin, CAPBridgedPlugin {
         }
         implementation = EdgeToEdge(viewController: viewController)
         
-        // Setup keyboard event listener
-        implementation?.setKeyboardListener { [weak self] height, isVisible, duration in
+        // Setup keyboard event callbacks (official Capacitor Keyboard plugin approach)
+        implementation?.onKeyboardWillShow = { [weak self] height in
             guard let self = self else { return }
             
-            var event: [String: Any] = [
-                "height": height,
-                "isVisible": isVisible,
-                "animationDuration": duration * 1000 // Convert to milliseconds
-            ]
+            let data: [String: Any] = ["keyboardHeight": height]
             
-            // Send appropriate events
-            if isVisible {
-                self.notifyListeners("keyboardWillShow", data: event)
-                // Send didShow after a short delay to match native behavior
-                DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
-                    self.notifyListeners("keyboardDidShow", data: event)
-                }
-            } else {
-                self.notifyListeners("keyboardWillHide", data: event)
-                // Send didHide after animation completes
-                DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
-                    self.notifyListeners("keyboardDidHide", data: event)
-                }
-            }
+            // Trigger window event (for compatibility with Capacitor Keyboard plugin)
+            let jsData = "{ 'keyboardHeight': \(Int(height)) }"
+            self.bridge?.triggerWindowJSEvent(eventName: "keyboardWillShow", data: jsData)
+            
+            // Notify listeners
+            self.notifyListeners("keyboardWillShow", data: data)
+        }
+        
+        implementation?.onKeyboardDidShow = { [weak self] height in
+            guard let self = self else { return }
+            
+            let data: [String: Any] = ["keyboardHeight": height]
+            
+            // Trigger window event
+            let jsData = "{ 'keyboardHeight': \(Int(height)) }"
+            self.bridge?.triggerWindowJSEvent(eventName: "keyboardDidShow", data: jsData)
+            
+            // Notify listeners
+            self.notifyListeners("keyboardDidShow", data: data)
+        }
+        
+        implementation?.onKeyboardWillHide = { [weak self] in
+            guard let self = self else { return }
+            
+            // Trigger window event
+            self.bridge?.triggerWindowJSEvent(eventName: "keyboardWillHide")
+            
+            // Notify listeners
+            self.notifyListeners("keyboardWillHide", data: nil)
+        }
+        
+        implementation?.onKeyboardDidHide = { [weak self] in
+            guard let self = self else { return }
+            
+            // Trigger window event
+            self.bridge?.triggerWindowJSEvent(eventName: "keyboardDidHide")
+            
+            // Notify listeners
+            self.notifyListeners("keyboardDidHide", data: nil)
         }
     }
     
@@ -158,5 +183,27 @@ public class EdgeToEdgePlugin: CAPPlugin, CAPBridgedPlugin {
         }
         
         call.resolve(result)
+    }
+    
+    /// Show the keyboard
+    @objc func show(_ call: CAPPluginCall) {
+        guard let impl = implementation else {
+            call.reject("Plugin not initialized")
+            return
+        }
+        
+        impl.showKeyboard()
+        call.unimplemented("Show keyboard is not supported on iOS")
+    }
+    
+    /// Hide the keyboard
+    @objc func hide(_ call: CAPPluginCall) {
+        guard let impl = implementation else {
+            call.reject("Plugin not initialized")
+            return
+        }
+        
+        impl.hideKeyboard()
+        call.resolve()
     }
 }

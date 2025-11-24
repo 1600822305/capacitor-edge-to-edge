@@ -19,36 +19,56 @@ public class EdgeToEdgePlugin extends Plugin {
     public void load() {
         implementation = new EdgeToEdge(getActivity());
         
-        // Setup keyboard listener to send events to JavaScript
+        // Setup keyboard listener using official Capacitor Keyboard plugin approach
         implementation.setupKeyboardListener(new EdgeToEdge.KeyboardListener() {
-            private int lastHeight = 0;
-            private boolean lastVisible = false;
+            @Override
+            public void onKeyboardWillShow(int keyboardHeight) {
+                JSObject event = new JSObject();
+                event.put("keyboardHeight", keyboardHeight);
+                
+                // Trigger window event (for compatibility with Capacitor Keyboard plugin)
+                String data = "{ 'keyboardHeight': " + keyboardHeight + " }";
+                getBridge().triggerWindowJSEvent("keyboardWillShow", data);
+                
+                // Notify listeners
+                notifyListeners("keyboardWillShow", event);
+            }
             
             @Override
-            public void onKeyboardChanged(int height, boolean isVisible) {
-                // Only send events when state actually changes
-                boolean heightChanged = height != lastHeight;
-                boolean visibilityChanged = isVisible != lastVisible;
+            public void onKeyboardDidShow(int keyboardHeight) {
+                JSObject event = new JSObject();
+                event.put("keyboardHeight", keyboardHeight);
                 
-                if (heightChanged || visibilityChanged) {
-                    JSObject event = new JSObject();
-                    event.put("height", height);
-                    event.put("isVisible", isVisible);
-                    
-                    // Send appropriate events
-                    if (isVisible && !lastVisible) {
-                        // Keyboard showing
-                        notifyListeners("keyboardWillShow", event);
-                        notifyListeners("keyboardDidShow", event);
-                    } else if (!isVisible && lastVisible) {
-                        // Keyboard hiding
-                        notifyListeners("keyboardWillHide", event);
-                        notifyListeners("keyboardDidHide", event);
-                    }
-                    
-                    lastHeight = height;
-                    lastVisible = isVisible;
-                }
+                // Trigger window event
+                String data = "{ 'keyboardHeight': " + keyboardHeight + " }";
+                getBridge().triggerWindowJSEvent("keyboardDidShow", data);
+                
+                // Notify listeners
+                notifyListeners("keyboardDidShow", event);
+            }
+            
+            @Override
+            public void onKeyboardWillHide() {
+                JSObject event = new JSObject();
+                event.put("keyboardHeight", 0);
+                
+                // Trigger window event
+                getBridge().triggerWindowJSEvent("keyboardWillHide");
+                
+                // Notify listeners
+                notifyListeners("keyboardWillHide", event);
+            }
+            
+            @Override
+            public void onKeyboardDidHide() {
+                JSObject event = new JSObject();
+                event.put("keyboardHeight", 0);
+                
+                // Trigger window event
+                getBridge().triggerWindowJSEvent("keyboardDidHide");
+                
+                // Notify listeners
+                notifyListeners("keyboardDidHide", event);
             }
         });
     }
@@ -123,5 +143,29 @@ public class EdgeToEdgePlugin extends Plugin {
     public void getKeyboardInfo(PluginCall call) {
         JSObject result = implementation.getKeyboardInfo();
         call.resolve(result);
+    }
+
+    /**
+     * Show the keyboard (Android only)
+     * Based on official Capacitor Keyboard plugin
+     */
+    @PluginMethod
+    public void show(PluginCall call) {
+        implementation.showKeyboard();
+        call.resolve();
+    }
+
+    /**
+     * Hide the keyboard
+     * Based on official Capacitor Keyboard plugin
+     */
+    @PluginMethod
+    public void hide(PluginCall call) {
+        boolean success = implementation.hideKeyboard();
+        if (!success) {
+            call.reject("Can't close keyboard, not currently focused");
+        } else {
+            call.resolve();
+        }
     }
 }

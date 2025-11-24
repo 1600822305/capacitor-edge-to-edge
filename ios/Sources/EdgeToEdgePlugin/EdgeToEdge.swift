@@ -10,7 +10,13 @@ import UIKit
     private var isEdgeToEdgeEnabled = false
     private var keyboardHeight: CGFloat = 0
     private var isKeyboardVisible = false
-    private var keyboardListener: ((CGFloat, Bool, TimeInterval) -> Void)?
+    private var stageManagerOffset: CGFloat = 0
+    
+    // Keyboard event callbacks (official Capacitor Keyboard plugin style)
+    var onKeyboardWillShow: ((CGFloat) -> Void)?
+    var onKeyboardDidShow: ((CGFloat) -> Void)?
+    var onKeyboardWillHide: (() -> Void)?
+    var onKeyboardDidHide: (() -> Void)?
     
     @objc public init(viewController: UIViewController) {
         self.viewController = viewController
@@ -194,16 +200,27 @@ import UIKit
     // MARK: - Keyboard Methods
     
     /// Get current keyboard information
+    /// Returns height in pixels (consistent with official Capacitor Keyboard plugin)
     @objc public func getKeyboardInfo() -> [String: Any] {
         return [
-            "height": keyboardHeight,
+            "keyboardHeight": keyboardHeight,
             "isVisible": isKeyboardVisible
         ]
     }
     
-    /// Set keyboard event listener
-    @objc public func setKeyboardListener(_ listener: @escaping (CGFloat, Bool, TimeInterval) -> Void) {
-        self.keyboardListener = listener
+    /// Show the keyboard
+    /// Note: This is limited on iOS - it's better to focus an input element
+    @objc public func showKeyboard() {
+        // On iOS, we can't programmatically show keyboard without a focused input
+        // This is a limitation of iOS platform
+        // The official Capacitor Keyboard plugin marks this as unimplemented on iOS
+    }
+    
+    /// Hide the keyboard
+    @objc public func hideKeyboard() {
+        DispatchQueue.main.async { [weak self] in
+            self?.viewController?.view.endEditing(true)
+        }
     }
     
     /// Setup keyboard notifications
@@ -245,43 +262,66 @@ import UIKit
         NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardDidHideNotification, object: nil)
     }
     
-    /// Keyboard will show handler
+    /// Keyboard will show handler (official Capacitor Keyboard plugin approach)
     @objc private func keyboardWillShow(notification: NSNotification) {
-        if let keyboardFrame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect,
-           let duration = notification.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? TimeInterval {
-            
-            // Get safe area bottom (home indicator)
-            let safeAreaBottom = viewController?.view.safeAreaInsets.bottom ?? 0
-            
-            // Calculate actual keyboard height (excluding safe area)
-            let actualHeight = keyboardFrame.height - safeAreaBottom
-            
-            keyboardHeight = actualHeight
-            isKeyboardVisible = true
-            
-            // Notify listener
-            keyboardListener?(actualHeight, true, duration)
+        guard let keyboardFrame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else {
+            return
         }
-    }
-    
-    /// Keyboard will hide handler
-    @objc private func keyboardWillHide(notification: NSNotification) {
-        if let duration = notification.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? TimeInterval {
-            keyboardHeight = 0
-            isKeyboardVisible = false
-            
-            // Notify listener
-            keyboardListener?(0, false, duration)
+        
+        var height = keyboardFrame.size.height
+        
+        // Handle iPad Stage Manager (official Capacitor Keyboard plugin logic)
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            if stageManagerOffset > 0 {
+                height = stageManagerOffset
+            } else {
+                if let webView = viewController?.view,
+                   let window = webView.window,
+                   let screen = window.screen {
+                    let webViewAbsolute = webView.convert(webView.frame, to: screen.coordinateSpace)
+                    height = (webViewAbsolute.size.height + webViewAbsolute.origin.y) - (screen.bounds.size.height - keyboardFrame.size.height)
+                    if height < 0 {
+                        height = 0
+                    }
+                    stageManagerOffset = height
+                }
+            }
         }
+        
+        keyboardHeight = height
+        isKeyboardVisible = true
+        
+        // Notify callback (official Capacitor Keyboard plugin returns full height)
+        onKeyboardWillShow?(height)
     }
     
     /// Keyboard did show handler
     @objc private func keyboardDidShow(notification: NSNotification) {
-        // Already handled in willShow
+        guard let keyboardFrame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else {
+            return
+        }
+        
+        let height = keyboardFrame.size.height
+        
+        // Notify callback
+        onKeyboardDidShow?(height)
+    }
+    
+    /// Keyboard will hide handler
+    @objc private func keyboardWillHide(notification: NSNotification) {
+        keyboardHeight = 0
+        isKeyboardVisible = false
+        
+        // Notify callback
+        onKeyboardWillHide?()
     }
     
     /// Keyboard did hide handler
     @objc private func keyboardDidHide(notification: NSNotification) {
-        // Already handled in willHide
+        // Reset Stage Manager offset
+        stageManagerOffset = 0
+        
+        // Notify callback
+        onKeyboardDidHide?()
     }
 }

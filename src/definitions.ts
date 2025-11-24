@@ -45,25 +45,32 @@ export interface EdgeToEdgePlugin {
   getKeyboardInfo(): Promise<KeyboardInfo>;
 
   /**
+   * Show the keyboard
+   * 
+   * Note: This method is alpha and may have issues.
+   * - Android: Supported
+   * - iOS: Not supported (will call unimplemented)
+   * - Web: Not supported
+   * 
+   * @since 1.6.0
+   */
+  show(): Promise<void>;
+
+  /**
+   * Hide the keyboard
+   * 
+   * @since 1.6.0
+   */
+  hide(): Promise<void>;
+
+  /**
    * Add listener for keyboard events
-   * @param eventName - Event name ('keyboardWillShow' | 'keyboardWillHide' | 'keyboardDidShow' | 'keyboardDidHide')
+   * @param eventName - Event name
    * @param listenerFunc - Callback function
    */
   addListener(
-    eventName: 'keyboardWillShow',
-    listenerFunc: (event: KeyboardEvent) => void,
-  ): Promise<PluginListenerHandle>;
-  addListener(
-    eventName: 'keyboardWillHide',
-    listenerFunc: (event: KeyboardEvent) => void,
-  ): Promise<PluginListenerHandle>;
-  addListener(
-    eventName: 'keyboardDidShow',
-    listenerFunc: (event: KeyboardEvent) => void,
-  ): Promise<PluginListenerHandle>;
-  addListener(
-    eventName: 'keyboardDidHide',
-    listenerFunc: (event: KeyboardEvent) => void,
+    eventName: 'keyboardWillShow' | 'keyboardDidShow' | 'keyboardWillHide' | 'keyboardDidHide',
+    listenerFunc: (event: KeyboardEvent) => void
   ): Promise<PluginListenerHandle>;
 
   /**
@@ -122,9 +129,12 @@ export interface PluginListenerHandle {
 
 export interface KeyboardInfo {
   /**
-   * Keyboard height in pixels
+   * Keyboard height
+   * - Android: in DP units
+   * - iOS: in pixels
+   * - Web: estimated in pixels
    */
-  height: number;
+  keyboardHeight: number;
 
   /**
    * Whether keyboard is currently visible
@@ -134,19 +144,14 @@ export interface KeyboardInfo {
 
 export interface KeyboardEvent {
   /**
-   * Keyboard height in pixels
+   * Keyboard height
+   * - Android: in DP units (density-independent pixels)
+   * - iOS: in pixels
+   * - Web: estimated in pixels
+   *
+   * Compatible with official @capacitor/keyboard plugin
    */
-  height: number;
-
-  /**
-   * Whether keyboard is visible
-   */
-  isVisible: boolean;
-
-  /**
-   * Animation duration in milliseconds (iOS only)
-   */
-  animationDuration?: number;
+  keyboardHeight: number;
 }
 
 export interface SystemBarInsetsResult {
