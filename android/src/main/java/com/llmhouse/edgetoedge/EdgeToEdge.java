@@ -264,9 +264,31 @@ public class EdgeToEdge {
         final int[] lastHeight = {0};
         final boolean[] lastVisible = {false};
         
+        // Set OnApplyWindowInsetsListener for keyboard state tracking
+        // Note: Here we use WindowInsetsCompat which returns androidx.core.graphics.Insets
+        ViewCompat.setOnApplyWindowInsetsListener(decorView, (v, insets) -> {
+            Insets imeInsets = insets.getInsets(WindowInsetsCompat.Type.ime());
+            boolean imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime());
+            int imeHeight = imeInsets.bottom;
+            
+            if (imeHeight != lastHeight[0] || imeVisible != lastVisible[0]) {
+                lastHeight[0] = imeHeight;
+                lastVisible[0] = imeVisible;
+                
+                if (listener != null) {
+                    listener.onKeyboardChanged(imeHeight, imeVisible);
+                }
+                
+                Logger.info(TAG, "Keyboard state (API 30+) - Height: " + imeHeight + "px, Visible: " + imeVisible);
+            }
+            
+            return insets;
+        });
+        
         // Create animation callback for smooth keyboard animations
+        // IMPORTANT: Use DISPATCH_MODE_CONTINUE_ON_SUBTREE to allow events to propagate
         WindowInsetsAnimation.Callback animationCallback = new WindowInsetsAnimation.Callback(
-            WindowInsetsAnimation.Callback.DISPATCH_MODE_STOP
+            WindowInsetsAnimation.Callback.DISPATCH_MODE_CONTINUE_ON_SUBTREE
         ) {
             @NonNull
             @Override
@@ -287,8 +309,8 @@ public class EdgeToEdge {
                     }
                 }
                 
-                // Only notify for IME-related changes
-                if (isImeAnimation || imeHeight != lastHeight[0] || imeVisible != lastVisible[0]) {
+                // Only notify during IME animation for smooth updates
+                if (isImeAnimation && (imeHeight != lastHeight[0] || imeVisible != lastVisible[0])) {
                     lastHeight[0] = imeHeight;
                     lastVisible[0] = imeVisible;
                     
@@ -321,27 +343,6 @@ public class EdgeToEdge {
         
         // Set the animation callback
         decorView.setWindowInsetsAnimationCallback(animationCallback);
-        
-        // Also set OnApplyWindowInsetsListener for initial state
-        // Note: Here we use WindowInsetsCompat which returns androidx.core.graphics.Insets
-        ViewCompat.setOnApplyWindowInsetsListener(decorView, (v, insets) -> {
-            Insets imeInsets = insets.getInsets(WindowInsetsCompat.Type.ime());
-            boolean imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime());
-            int imeHeight = imeInsets.bottom;
-            
-            if (imeHeight != lastHeight[0] || imeVisible != lastVisible[0]) {
-                lastHeight[0] = imeHeight;
-                lastVisible[0] = imeVisible;
-                
-                if (listener != null) {
-                    listener.onKeyboardChanged(imeHeight, imeVisible);
-                }
-                
-                Logger.info(TAG, "Keyboard state (API 30+) - Height: " + imeHeight + "px, Visible: " + imeVisible);
-            }
-            
-            return insets;
-        });
         
         Logger.info(TAG, "Keyboard animation listener setup complete (Android 11+ with smooth animations)");
     }
