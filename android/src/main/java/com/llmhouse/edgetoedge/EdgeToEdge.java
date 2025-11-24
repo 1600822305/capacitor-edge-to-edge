@@ -6,6 +6,7 @@ import android.os.Build;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowInsets;
+import android.view.WindowInsetsAnimation;
 import android.view.WindowInsetsController;
 
 import androidx.annotation.NonNull;
@@ -16,8 +17,10 @@ import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 
-import com.getcapacitor.Logger;
 import com.getcapacitor.JSObject;
+import com.getcapacitor.Logger;
+
+import java.util.List;
 
 /**
  * EdgeToEdge implementation for Android 11-16 (API 30-36)
@@ -236,9 +239,121 @@ public class EdgeToEdge {
     /**
      * Setup keyboard insets listener
      * This will notify when keyboard shows/hides
+     * Improved with deduplication logic (Flutter-style)
+     * Uses WindowInsetsAnimation.Callback on Android 11+ for smooth animations
      */
     public void setupKeyboardListener(KeyboardListener listener) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // Android 11+ (API 30+): Use WindowInsetsAnimation for smooth frame-by-frame updates
+            setupKeyboardAnimationListener(listener);
+        } else {
+            // Android 10 and below: Use OnApplyWindowInsetsListener
+            setupLegacyKeyboardListener(listener);
+        }
+    }
+    
+    /**
+     * Setup keyboard animation listener for Android 11+ (API 30+)
+     * Provides smooth frame-by-frame updates during keyboard animation
+     */
+    @RequiresApi(api = Build.VERSION_CODES.R)
+    private void setupKeyboardAnimationListener(KeyboardListener listener) {
         View decorView = activity.getWindow().getDecorView();
+        
+        // Track previous state to avoid duplicate events
+        final int[] lastHeight = {0};
+        final boolean[] lastVisible = {false};
+        
+        // Create animation callback for smooth keyboard animations
+        WindowInsetsAnimation.Callback animationCallback = new WindowInsetsAnimation.Callback(
+            WindowInsetsAnimation.Callback.DISPATCH_MODE_STOP
+        ) {
+            @NonNull
+            @Override
+            public WindowInsets onProgress(@NonNull WindowInsets insets, 
+                                          @NonNull List<WindowInsetsAnimation> runningAnimations) {
+                // Called on every frame of the keyboard animation
+                Insets imeInsets = insets.getInsets(WindowInsets.Type.ime());
+                boolean imeVisible = insets.isVisible(WindowInsets.Type.ime());
+                int imeHeight = imeInsets.bottom;
+                
+                // Check if this is an IME animation
+                boolean isImeAnimation = false;
+                for (WindowInsetsAnimation animation : runningAnimations) {
+                    if ((animation.getTypeMask() & WindowInsets.Type.ime()) != 0) {
+                        isImeAnimation = true;
+                        break;
+                    }
+                }
+                
+                // Only notify for IME-related changes
+                if (isImeAnimation || imeHeight != lastHeight[0] || imeVisible != lastVisible[0]) {
+                    lastHeight[0] = imeHeight;
+                    lastVisible[0] = imeVisible;
+                    
+                    if (listener != null) {
+                        listener.onKeyboardChanged(imeHeight, imeVisible);
+                    }
+                }
+                
+                return insets;
+            }
+            
+            @Override
+            public void onEnd(@NonNull WindowInsetsAnimation animation) {
+                // Animation completed
+                if ((animation.getTypeMask() & WindowInsets.Type.ime()) != 0) {
+                    Logger.info(TAG, "Keyboard animation completed");
+                }
+                super.onEnd(animation);
+            }
+            
+            @Override
+            public void onPrepare(@NonNull WindowInsetsAnimation animation) {
+                // Animation about to start
+                if ((animation.getTypeMask() & WindowInsets.Type.ime()) != 0) {
+                    Logger.info(TAG, "Keyboard animation starting");
+                }
+                super.onPrepare(animation);
+            }
+        };
+        
+        // Set the animation callback
+        decorView.setWindowInsetsAnimationCallback(animationCallback);
+        
+        // Also set OnApplyWindowInsetsListener for initial state
+        ViewCompat.setOnApplyWindowInsetsListener(decorView, (v, insets) -> {
+            Insets imeInsets = insets.getInsets(WindowInsetsCompat.Type.ime());
+            boolean imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime());
+            int imeHeight = imeInsets.bottom;
+            
+            if (imeHeight != lastHeight[0] || imeVisible != lastVisible[0]) {
+                lastHeight[0] = imeHeight;
+                lastVisible[0] = imeVisible;
+                
+                if (listener != null) {
+                    listener.onKeyboardChanged(imeHeight, imeVisible);
+                }
+                
+                Logger.info(TAG, "Keyboard state (API 30+) - Height: " + imeHeight + "px, Visible: " + imeVisible);
+            }
+            
+            return insets;
+        });
+        
+        Logger.info(TAG, "Keyboard animation listener setup complete (Android 11+ with smooth animations)");
+    }
+    
+    /**
+     * Setup legacy keyboard listener for Android 10 and below
+     * Uses OnApplyWindowInsetsListener only
+     */
+    private void setupLegacyKeyboardListener(KeyboardListener listener) {
+        View decorView = activity.getWindow().getDecorView();
+        
+        // Track previous state to avoid duplicate events
+        final int[] lastHeight = {0};
+        final boolean[] lastVisible = {false};
         
         ViewCompat.setOnApplyWindowInsetsListener(decorView, (v, insets) -> {
             // Get IME (keyboard) insets
@@ -246,15 +361,28 @@ public class EdgeToEdge {
             boolean imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime());
             int imeHeight = imeInsets.bottom;
             
-            // Notify listener
-            if (listener != null) {
-                listener.onKeyboardChanged(imeHeight, imeVisible);
+            // Only notify if state actually changed (avoid duplicate events)
+            boolean heightChanged = imeHeight != lastHeight[0];
+            boolean visibilityChanged = imeVisible != lastVisible[0];
+            
+            if (heightChanged || visibilityChanged) {
+                // Update tracked state
+                lastHeight[0] = imeHeight;
+                lastVisible[0] = imeVisible;
+                
+                // Notify listener
+                if (listener != null) {
+                    listener.onKeyboardChanged(imeHeight, imeVisible);
+                }
+                
+                Logger.info(TAG, "Keyboard state changed (Legacy) - Height: " + imeHeight + "px, Visible: " + imeVisible);
             }
             
+            // IMPORTANT: Always return insets for proper consumption
             return insets;
         });
         
-        Logger.info(TAG, "Keyboard listener setup complete");
+        Logger.info(TAG, "Legacy keyboard listener setup complete (with deduplication)");
     }
 
     /**

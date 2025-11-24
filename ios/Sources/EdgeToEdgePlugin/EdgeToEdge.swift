@@ -12,6 +12,14 @@ import UIKit
     private var isKeyboardVisible = false
     private var keyboardListener: ((CGFloat, Bool, TimeInterval) -> Void)?
     
+    // Keyboard mode tracking (like Flutter)
+    private enum KeyboardMode {
+        case hidden
+        case docked
+        case floating
+    }
+    private var currentKeyboardMode: KeyboardMode = .hidden
+    
     @objc public init(viewController: UIViewController) {
         self.viewController = viewController
         super.init()
@@ -206,33 +214,29 @@ import UIKit
         self.keyboardListener = listener
     }
     
-    /// Setup keyboard notifications
+    /// Setup keyboard notifications (Flutter-style: only 3 key notifications)
     private func setupKeyboardNotifications() {
+        // keyboardWillShow: When docked keyboard appears or when keyboard goes from floating to docked
         NotificationCenter.default.addObserver(
             self,
-            selector: #selector(keyboardWillShow),
+            selector: #selector(handleKeyboardNotification),
             name: UIResponder.keyboardWillShowNotification,
             object: nil
         )
         
+        // keyboardWillChangeFrame: Immediately prior to any keyboard frame change
         NotificationCenter.default.addObserver(
             self,
-            selector: #selector(keyboardWillHide),
+            selector: #selector(handleKeyboardNotification),
+            name: UIResponder.keyboardWillChangeFrameNotification,
+            object: nil
+        )
+        
+        // keyboardWillHide: When keyboard is hidden or undocked
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleKeyboardNotification),
             name: UIResponder.keyboardWillHideNotification,
-            object: nil
-        )
-        
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(keyboardDidShow),
-            name: UIResponder.keyboardDidShowNotification,
-            object: nil
-        )
-        
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(keyboardDidHide),
-            name: UIResponder.keyboardDidHideNotification,
             object: nil
         )
     }
@@ -240,48 +244,167 @@ import UIKit
     /// Remove keyboard notifications
     private func removeKeyboardNotifications() {
         NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardWillShowNotification, object: nil)
+        NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
         NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardWillHideNotification, object: nil)
-        NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardDidShowNotification, object: nil)
-        NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardDidHideNotification, object: nil)
     }
     
-    /// Keyboard will show handler
-    @objc private func keyboardWillShow(notification: NSNotification) {
-        if let keyboardFrame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect,
-           let duration = notification.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? TimeInterval {
-            
-            // Get safe area bottom (home indicator)
-            let safeAreaBottom = viewController?.view.safeAreaInsets.bottom ?? 0
-            
-            // Calculate actual keyboard height (excluding safe area)
-            let actualHeight = keyboardFrame.height - safeAreaBottom
-            
-            keyboardHeight = actualHeight
-            isKeyboardVisible = true
-            
-            // Notify listener
-            keyboardListener?(actualHeight, true, duration)
+    /// Main keyboard notification handler (Flutter-style unified handler)
+    @objc private func handleKeyboardNotification(_ notification: NSNotification) {
+        guard let userInfo = notification.userInfo,
+              let keyboardFrameEnd = userInfo[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect,
+              let duration = userInfo[UIResponder.keyboardAnimationDurationUserInfoKey] as? TimeInterval else {
+            return
         }
-    }
-    
-    /// Keyboard will hide handler
-    @objc private func keyboardWillHide(notification: NSNotification) {
-        if let duration = notification.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? TimeInterval {
-            keyboardHeight = 0
-            isKeyboardVisible = false
-            
-            // Notify listener
+        
+        // Determine keyboard mode
+        let keyboardMode = calculateKeyboardMode(notification: notification, keyboardFrame: keyboardFrameEnd)
+        
+        // Calculate keyboard inset (only docked keyboards contribute to inset)
+        let calculatedHeight = calculateKeyboardInset(keyboardFrame: keyboardFrameEnd, mode: keyboardMode)
+        
+        // Avoid duplicate triggers
+        if self.keyboardHeight == calculatedHeight && self.currentKeyboardMode == keyboardMode {
+            return
+        }
+        
+        let wasVisible = isKeyboardVisible
+        let previousHeight = keyboardHeight
+        
+        // Update state
+        self.keyboardHeight = calculatedHeight
+        self.currentKeyboardMode = keyboardMode
+        self.isKeyboardVisible = (keyboardMode != .hidden && calculatedHeight > 0)
+        
+        // Notify listener
+        if self.isKeyboardVisible && !wasVisible {
+            // Keyboard showing
+            keyboardListener?(calculatedHeight, true, duration)
+        } else if !self.isKeyboardVisible && wasVisible {
+            // Keyboard hiding
             keyboardListener?(0, false, duration)
+        } else if self.isKeyboardVisible && previousHeight != calculatedHeight {
+            // Keyboard height changed while visible
+            keyboardListener?(calculatedHeight, true, duration)
         }
     }
     
-    /// Keyboard did show handler
-    @objc private func keyboardDidShow(notification: NSNotification) {
-        // Already handled in willShow
+    /// Calculate keyboard mode (hidden, docked, or floating)
+    /// Based on Flutter's implementation
+    private func calculateKeyboardMode(notification: NSNotification, keyboardFrame: CGRect) -> KeyboardMode {
+        // If it's a hide notification, keyboard is hidden
+        if notification.name == UIResponder.keyboardWillHideNotification {
+            return .hidden
+        }
+        
+        // If keyboard frame is zero, it's a floating shortcuts bar that was dragged and dropped
+        if keyboardFrame.equalTo(.zero) {
+            return .floating
+        }
+        
+        // If keyboard frame is empty (width or height is 0), it's hidden
+        if keyboardFrame.isEmpty {
+            return .hidden
+        }
+        
+        guard let view = viewController?.view,
+              let window = view.window else {
+            return .hidden
+        }
+        
+        // Get screen bounds
+        let screenBounds = window.screen.bounds
+        
+        // Calculate intersection between keyboard and screen
+        let intersection = keyboardFrame.intersection(screenBounds)
+        
+        // If there's no meaningful intersection, keyboard is hidden
+        if intersection.height <= 0 || intersection.width <= 0 {
+            return .hidden
+        }
+        
+        // If keyboard is above the bottom of screen, it's floating
+        let screenHeight = screenBounds.height
+        let keyboardBottom = keyboardFrame.maxY
+        
+        if round(keyboardBottom) < round(screenHeight) {
+            return .floating
+        }
+        
+        // Otherwise, it's docked
+        return .docked
     }
     
-    /// Keyboard did hide handler
-    @objc private func keyboardDidHide(notification: NSNotification) {
-        // Already handled in willHide
+    /// Calculate keyboard inset (Flutter-style: only docked keyboards count)
+    private func calculateKeyboardInset(keyboardFrame: CGRect, mode: KeyboardMode) -> CGFloat {
+        // Only docked keyboards contribute to inset
+        guard mode == .docked else {
+            return 0
+        }
+        
+        guard let view = viewController?.view,
+              let window = view.window else {
+            return 0
+        }
+        
+        // Calculate multitasking adjustment for Slide Over mode (iPad)
+        let screenBounds = window.screen.bounds
+        var adjustedKeyboardFrame = keyboardFrame
+        let multitaskingAdjustment = calculateMultitaskingAdjustment(
+            screenRect: screenBounds,
+            keyboardFrame: keyboardFrame
+        )
+        adjustedKeyboardFrame.origin.y += multitaskingAdjustment
+        
+        // Convert view frame to screen coordinates
+        let viewFrameInScreen = view.convert(view.bounds, to: nil)
+        
+        // Calculate intersection between adjusted keyboard and view
+        let intersection = adjustedKeyboardFrame.intersection(viewFrameInScreen)
+        
+        // The portion of keyboard that's within the view
+        let keyboardHeightInView = intersection.height
+        
+        // Return the height (this already accounts for safe area correctly)
+        return keyboardHeightInView
+    }
+    
+    /// Calculate multitasking adjustment for iPad Slide Over mode
+    /// Based on Flutter's implementation
+    private func calculateMultitaskingAdjustment(screenRect: CGRect, keyboardFrame: CGRect) -> CGFloat {
+        guard let view = viewController?.view else {
+            return 0
+        }
+        
+        // Only apply to iPad in Slide Over mode
+        // Slide Over characteristics: compact width + regular height on iPad
+        if #available(iOS 8.0, *) {
+            let traits = view.traitCollection
+            
+            guard traits.userInterfaceIdiom == .pad &&
+                  traits.horizontalSizeClass == .compact &&
+                  traits.verticalSizeClass == .regular else {
+                return 0
+            }
+        } else {
+            return 0
+        }
+        
+        let screenHeight = screenRect.height
+        let keyboardBottom = keyboardFrame.maxY
+        
+        // Skip if keyboard is already at screen bottom (Stage Manager mode)
+        if screenHeight == keyboardBottom {
+            return 0
+        }
+        
+        // Calculate view's position relative to screen
+        let viewRectInScreen = view.convert(view.bounds, to: nil)
+        let viewBottom = viewRectInScreen.maxY
+        
+        // Calculate the space below the view
+        let offset = screenHeight - viewBottom
+        
+        // Return offset if positive
+        return offset > 0 ? offset : 0
     }
 }

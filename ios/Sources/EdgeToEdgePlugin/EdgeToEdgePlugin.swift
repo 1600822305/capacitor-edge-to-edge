@@ -159,15 +159,4 @@ public class EdgeToEdgePlugin: CAPPlugin, CAPBridgedPlugin {
         
         call.resolve(result)
     }
-    
-    // MARK: - Status Bar Override
-    
-    /// Override to allow dynamic status bar style changes
-    public override var prefersStatusBarHidden: Bool {
-        return false
-    }
-    
-    public override var preferredStatusBarStyle: UIStatusBarStyle {
-        return implementation?.getStatusBarStyle() ?? .default
-    }
 }
