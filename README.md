@@ -433,7 +433,6 @@ Created by [q1600822305](https://github.com/q1600822305)
 * [`getKeyboardInfo()`](#getkeyboardinfo)
 * [`show()`](#show)
 * [`hide()`](#hide)
-* [`refreshSafeArea()`](#refreshsafearea)
 * [`addListener('keyboardWillShow' | 'keyboardDidShow' | 'keyboardWillHide' | 'keyboardDidHide', ...)`](#addlistenerkeyboardwillshow--keyboarddidshow--keyboardwillhide--keyboarddidhide-)
 * [`removeAllListeners()`](#removealllisteners)
 * [Interfaces](#interfaces)
@@ -567,20 +566,6 @@ hide() => Promise<void>
 Hide the keyboard
 
 **Since:** 1.6.0
-
---------------------
-
-
-### refreshSafeArea()
-
-```typescript
-refreshSafeArea() => Promise<void>
-```
-
-Refresh safe area CSS variables (useful after orientation change)
-Injects --safe-area-inset-* CSS variables into the WebView
-
-**Since:** 1.6.3
 
 --------------------
 
