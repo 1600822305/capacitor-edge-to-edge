@@ -4,8 +4,8 @@ import WebKit
 
 /// EdgeToEdge implementation for iOS 14+
 /// Provides control over status bar appearance and safe area handling
-/// 借鉴 Capacitor 官方 Keyboard 插件的实现
-@objc public class EdgeToEdge: NSObject {
+/// 完全复制 Tauri iOS 成功实现
+@objc public class EdgeToEdge: NSObject, UIScrollViewDelegate {
     
     private weak var viewController: UIViewController?
     private weak var webView: WKWebView?
@@ -14,7 +14,9 @@ import WebKit
     private var keyboardHeight: CGFloat = 0
     private var isKeyboardVisible = false
     private var stageManagerOffset: CGFloat = 0
-    private var hideTimer: Timer?  // 借鉴 Capacitor Keyboard 插件
+    private var hideTimer: Timer?
+    private var keyboardStateVersion: Int = 0  // 状态版本号，用于取消过期的回调
+    private var periodicInjectionCompleted = false  // 周期性注入是否完成
     
     // Keyboard event callbacks (official Capacitor Keyboard plugin style)
     var onKeyboardWillShow: ((CGFloat) -> Void)?
@@ -26,13 +28,68 @@ import WebKit
         self.viewController = viewController
         super.init()
         
-        // 查找 WebView（借鉴 Capacitor Keyboard 插件）
+        // 查找 WebView
         findWebView(in: viewController.view)
         
-        // 移除 WebView 默认的键盘监听（借鉴 Capacitor Keyboard 插件）
+        // 设置 WebView（参考 Tauri 成功实现）
+        setupWebView()
+        
+        // 移除 WebView 默认的键盘监听
         removeDefaultKeyboardObservers()
         
         setupKeyboardNotifications()
+        
+        // 周期性注入安全区域（参考 Tauri 成功实现）
+        startPeriodicInjection()
+    }
+    
+    /// 设置 WebView（参考 Tauri 成功实现）
+    private func setupWebView() {
+        guard let wv = webView else { return }
+        
+        // 1. 设置 WebView 背景透明
+        wv.isOpaque = false
+        wv.backgroundColor = .clear
+        wv.scrollView.backgroundColor = .clear
+        
+        // 2. 关键设置：使用 .never 禁用系统自动调整
+        if #available(iOS 11.0, *) {
+            wv.scrollView.contentInsetAdjustmentBehavior = .never
+        }
+        
+        // 3. 禁用滚动视图的自动 inset 调整
+        wv.scrollView.automaticallyAdjustsScrollIndicatorInsets = false
+        
+        // 4. 参考 eunjios/ios-webview-keyboard-demo：防止键盘跳动
+        wv.scrollView.bounces = false
+        wv.scrollView.delegate = self
+        
+        NSLog("[EdgeToEdge] WebView setup completed with scroll lock")
+    }
+    
+    // MARK: - UIScrollViewDelegate (参考 Tauri 成功实现)
+    
+    /// 锁定 WebView 滚动位置，防止键盘跳动
+    public func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        if scrollView.contentOffset != .zero {
+            scrollView.contentOffset = .zero
+        }
+    }
+    
+    // MARK: - Periodic Injection (参考 Tauri 成功实现)
+    
+    private func startPeriodicInjection() {
+        for i in 1...10 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.5) { [weak self] in
+                guard let self = self else { return }
+                guard !self.periodicInjectionCompleted && !self.isKeyboardVisible else { return }
+                self.injectSafeAreaInsets(keyboardHeight: self.keyboardHeight, keyboardVisible: self.isKeyboardVisible)
+                
+                if i == 10 {
+                    self.periodicInjectionCompleted = true
+                }
+            }
+        }
     }
     
     deinit {
@@ -312,11 +369,15 @@ import WebKit
         NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardDidHideNotification, object: nil)
     }
     
-    /// Keyboard will show handler (借鉴 Capacitor 官方 Keyboard 插件)
+    /// Keyboard will show handler (参考 Tauri 成功实现)
     @objc private func keyboardWillShow(notification: NSNotification) {
         // 取消隐藏定时器
         hideTimer?.invalidate()
         hideTimer = nil
+        
+        // 增加状态版本号，取消之前的延迟回调
+        keyboardStateVersion += 1
+        let currentVersion = keyboardStateVersion
         
         guard let keyboardFrame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else {
             return
@@ -324,7 +385,7 @@ import WebKit
         
         var height = keyboardFrame.size.height
         
-        // Handle iPad Stage Manager (official Capacitor Keyboard plugin logic)
+        // Handle iPad Stage Manager
         if UIDevice.current.userInterfaceIdiom == .pad {
             if stageManagerOffset > 0 {
                 height = stageManagerOffset
@@ -345,53 +406,88 @@ import WebKit
         keyboardHeight = height
         isKeyboardVisible = true
         
-        // 重置 ScrollView（借鉴 Capacitor Keyboard 插件）
+        // 立即重置 ScrollView
         resetScrollView()
         
-        // Notify callback (official Capacitor Keyboard plugin returns full height)
+        NSLog("[EdgeToEdge] Keyboard will show - Height: \(height)")
+        
+        // 注入 CSS 变量（参考 Tauri 成功实现）
+        injectSafeAreaInsets(keyboardHeight: height, keyboardVisible: true)
+        
+        // 延迟再次重置，防止系统覆盖
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+            guard let self = self else { return }
+            guard self.keyboardStateVersion == currentVersion else { return }
+            self.resetScrollView()
+        }
+        
+        // Notify callback
         onKeyboardWillShow?(height)
     }
     
     /// Keyboard did show handler
     @objc private func keyboardDidShow(notification: NSNotification) {
-        guard let keyboardFrame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else {
-            return
-        }
-        
-        let height = keyboardFrame.size.height
-        
         // 重置 ScrollView
         resetScrollView()
         
+        NSLog("[EdgeToEdge] Keyboard did show - Final height: \(keyboardHeight)")
+        
+        // 只在键盘确实显示时注入一次
+        if isKeyboardVisible {
+            injectSafeAreaInsets(keyboardHeight: keyboardHeight, keyboardVisible: true)
+        }
+        
         // Notify callback
-        onKeyboardDidShow?(height)
+        onKeyboardDidShow?(keyboardHeight)
     }
     
-    /// Keyboard will hide handler (借鉴 Capacitor 官方 Keyboard 插件)
+    /// Keyboard will hide handler (参考 Tauri 成功实现)
     @objc private func keyboardWillHide(notification: NSNotification) {
+        // 增加状态版本号，取消之前的延迟回调
+        keyboardStateVersion += 1
+        
         keyboardHeight = 0
         isKeyboardVisible = false
         
         // 重置 ScrollView
         resetScrollView()
         
-        // 使用定时器延迟触发（借鉴 Capacitor Keyboard 插件）
-        hideTimer = Timer.scheduledTimer(withTimeInterval: 0.01, repeats: false) { [weak self] _ in
-            self?.onKeyboardWillHide?()
-        }
-        RunLoop.current.add(hideTimer!, forMode: .common)
+        NSLog("[EdgeToEdge] Keyboard will hide")
+        
+        // 注入 CSS 变量
+        injectSafeAreaInsets(keyboardHeight: 0, keyboardVisible: false)
+        
+        // Notify callback
+        onKeyboardWillHide?()
     }
     
-    /// Keyboard did hide handler
+    /// Keyboard did hide handler (参考 Tauri 成功实现)
     @objc private func keyboardDidHide(notification: NSNotification) {
+        let currentVersion = keyboardStateVersion
+        
         // Reset Stage Manager offset
         stageManagerOffset = 0
         
-        // 重置 ScrollView（借鉴 Capacitor Keyboard 插件）
+        // 重置 ScrollView
         resetScrollView()
         
         // 恢复 Edge-to-Edge 设置
         restoreEdgeToEdge()
+        
+        NSLog("[EdgeToEdge] Keyboard did hide - Edge-to-Edge restored")
+        
+        // 只在键盘确实隐藏时注入
+        if !isKeyboardVisible {
+            injectSafeAreaInsets(keyboardHeight: 0, keyboardVisible: false)
+        }
+        
+        // 延迟恢复，使用版本号检查
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            guard let self = self else { return }
+            guard self.keyboardStateVersion == currentVersion else { return }
+            self.resetScrollView()
+            self.restoreEdgeToEdge()
+        }
         
         // Notify callback
         onKeyboardDidHide?()
@@ -410,5 +506,52 @@ import WebKit
         // 重置 scrollView 的 contentInset
         wv.scrollView.contentInset = .zero
         wv.scrollView.scrollIndicatorInsets = .zero
+    }
+    
+    // MARK: - Safe Area Injection (参考 Tauri 成功实现)
+    
+    /// 注入安全区域 CSS 变量到 WebView
+    private func injectSafeAreaInsets(keyboardHeight: CGFloat, keyboardVisible: Bool) {
+        guard let wv = webView else { return }
+        guard #available(iOS 11.0, *) else { return }
+        
+        let safeArea = wv.window?.safeAreaInsets ?? .zero
+        let top = safeArea.top
+        let right = safeArea.right
+        let bottom = safeArea.bottom
+        let left = safeArea.left
+        
+        // 键盘显示时，底部安全区域为0（键盘已覆盖Home Indicator）
+        // 键盘隐藏时，确保最小安全区域（iPhone X 等有 Home Indicator）
+        let computedBottom: CGFloat
+        if keyboardVisible {
+            computedBottom = 0
+        } else {
+            computedBottom = max(bottom, 34.0)
+        }
+        
+        let jsCode = """
+        (function() {
+            var style = document.documentElement.style;
+            style.setProperty('--safe-area-inset-top', '\(top)px');
+            style.setProperty('--safe-area-inset-right', '\(right)px');
+            style.setProperty('--safe-area-inset-bottom', '\(computedBottom)px');
+            style.setProperty('--safe-area-inset-left', '\(left)px');
+            style.setProperty('--safe-area-top', '\(top)px');
+            style.setProperty('--safe-area-right', '\(right)px');
+            style.setProperty('--safe-area-bottom', '\(computedBottom)px');
+            style.setProperty('--safe-area-left', '\(left)px');
+            style.setProperty('--safe-area-bottom-computed', '\(computedBottom)px');
+            style.setProperty('--safe-area-bottom-min', '\(keyboardVisible ? 0 : 34)px');
+            style.setProperty('--content-bottom-padding', '\(computedBottom)px');
+            style.setProperty('--keyboard-height', '\(keyboardHeight)px');
+            style.setProperty('--keyboard-visible', '\(keyboardVisible ? "1" : "0")');
+            window.dispatchEvent(new CustomEvent('safeAreaChanged', {
+                detail: { top: \(top), right: \(right), bottom: \(computedBottom), left: \(left), keyboardHeight: \(keyboardHeight), keyboardVisible: \(keyboardVisible) }
+            }));
+        })();
+        """
+        
+        wv.evaluateJavaScript(jsCode, completionHandler: nil)
     }
 }
