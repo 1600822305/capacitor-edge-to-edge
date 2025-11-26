@@ -1,16 +1,20 @@
 import Foundation
 import UIKit
+import WebKit
 
 /// EdgeToEdge implementation for iOS 14+
 /// Provides control over status bar appearance and safe area handling
+/// 借鉴 Capacitor 官方 Keyboard 插件的实现
 @objc public class EdgeToEdge: NSObject {
     
     private weak var viewController: UIViewController?
+    private weak var webView: WKWebView?
     private var currentStatusBarStyle: UIStatusBarStyle = .default
     private var isEdgeToEdgeEnabled = false
     private var keyboardHeight: CGFloat = 0
     private var isKeyboardVisible = false
     private var stageManagerOffset: CGFloat = 0
+    private var hideTimer: Timer?  // 借鉴 Capacitor Keyboard 插件
     
     // Keyboard event callbacks (official Capacitor Keyboard plugin style)
     var onKeyboardWillShow: ((CGFloat) -> Void)?
@@ -21,11 +25,47 @@ import UIKit
     @objc public init(viewController: UIViewController) {
         self.viewController = viewController
         super.init()
+        
+        // 查找 WebView（借鉴 Capacitor Keyboard 插件）
+        findWebView(in: viewController.view)
+        
+        // 移除 WebView 默认的键盘监听（借鉴 Capacitor Keyboard 插件）
+        removeDefaultKeyboardObservers()
+        
         setupKeyboardNotifications()
     }
     
     deinit {
+        hideTimer?.invalidate()
         removeKeyboardNotifications()
+    }
+    
+    /// 查找 WebView
+    private func findWebView(in view: UIView) {
+        if let wv = view as? WKWebView {
+            self.webView = wv
+            return
+        }
+        for subview in view.subviews {
+            findWebView(in: subview)
+            if webView != nil { return }
+        }
+    }
+    
+    /// 移除 WebView 默认的键盘监听（借鉴 Capacitor Keyboard 插件）
+    private func removeDefaultKeyboardObservers() {
+        guard let wv = webView else { return }
+        NotificationCenter.default.removeObserver(wv, name: UIResponder.keyboardWillHideNotification, object: nil)
+        NotificationCenter.default.removeObserver(wv, name: UIResponder.keyboardWillShowNotification, object: nil)
+        NotificationCenter.default.removeObserver(wv, name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
+        NotificationCenter.default.removeObserver(wv, name: UIResponder.keyboardDidChangeFrameNotification, object: nil)
+    }
+    
+    /// 重置 ScrollView（借鉴 Capacitor Keyboard 插件的 resetScrollView）
+    private func resetScrollView() {
+        guard let wv = webView else { return }
+        wv.scrollView.contentInset = .zero
+        wv.scrollView.scrollIndicatorInsets = .zero
     }
     
     /// Enable edge-to-edge mode (content extends to screen edges)
@@ -38,6 +78,16 @@ import UIKit
         DispatchQueue.main.async {
             // Extend content under safe area
             vc.additionalSafeAreaInsets = .zero
+            
+            // 设置 WebView scrollView 属性（关键！）
+            if let wv = self.webView {
+                if #available(iOS 11.0, *) {
+                    wv.scrollView.contentInsetAdjustmentBehavior = .never
+                }
+                wv.scrollView.automaticallyAdjustsScrollIndicatorInsets = false
+                wv.scrollView.contentInset = .zero
+                wv.scrollView.scrollIndicatorInsets = .zero
+            }
             
             // Update view layout
             vc.view.setNeedsLayout()
@@ -262,8 +312,12 @@ import UIKit
         NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardDidHideNotification, object: nil)
     }
     
-    /// Keyboard will show handler (official Capacitor Keyboard plugin approach)
+    /// Keyboard will show handler (借鉴 Capacitor 官方 Keyboard 插件)
     @objc private func keyboardWillShow(notification: NSNotification) {
+        // 取消隐藏定时器
+        hideTimer?.invalidate()
+        hideTimer = nil
+        
         guard let keyboardFrame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else {
             return
         }
@@ -275,11 +329,11 @@ import UIKit
             if stageManagerOffset > 0 {
                 height = stageManagerOffset
             } else {
-                if let webView = viewController?.view,
-                   let window = webView.window {
+                if let view = viewController?.view,
+                   let window = view.window {
                     let screen = window.screen
-                    let webViewAbsolute = webView.convert(webView.frame, to: screen.coordinateSpace)
-                    height = (webViewAbsolute.size.height + webViewAbsolute.origin.y) - (screen.bounds.size.height - keyboardFrame.size.height)
+                    let viewAbsolute = view.convert(view.frame, to: screen.coordinateSpace)
+                    height = (viewAbsolute.size.height + viewAbsolute.origin.y) - (screen.bounds.size.height - keyboardFrame.size.height)
                     if height < 0 {
                         height = 0
                     }
@@ -290,6 +344,9 @@ import UIKit
         
         keyboardHeight = height
         isKeyboardVisible = true
+        
+        // 重置 ScrollView（借鉴 Capacitor Keyboard 插件）
+        resetScrollView()
         
         // Notify callback (official Capacitor Keyboard plugin returns full height)
         onKeyboardWillShow?(height)
@@ -303,17 +360,26 @@ import UIKit
         
         let height = keyboardFrame.size.height
         
+        // 重置 ScrollView
+        resetScrollView()
+        
         // Notify callback
         onKeyboardDidShow?(height)
     }
     
-    /// Keyboard will hide handler
+    /// Keyboard will hide handler (借鉴 Capacitor 官方 Keyboard 插件)
     @objc private func keyboardWillHide(notification: NSNotification) {
         keyboardHeight = 0
         isKeyboardVisible = false
         
-        // Notify callback
-        onKeyboardWillHide?()
+        // 重置 ScrollView
+        resetScrollView()
+        
+        // 使用定时器延迟触发（借鉴 Capacitor Keyboard 插件）
+        hideTimer = Timer.scheduledTimer(withTimeInterval: 0.01, repeats: false) { [weak self] _ in
+            self?.onKeyboardWillHide?()
+        }
+        RunLoop.current.add(hideTimer!, forMode: .common)
     }
     
     /// Keyboard did hide handler
@@ -321,7 +387,28 @@ import UIKit
         // Reset Stage Manager offset
         stageManagerOffset = 0
         
+        // 重置 ScrollView（借鉴 Capacitor Keyboard 插件）
+        resetScrollView()
+        
+        // 恢复 Edge-to-Edge 设置
+        restoreEdgeToEdge()
+        
         // Notify callback
         onKeyboardDidHide?()
+    }
+    
+    /// 恢复 Edge-to-Edge 设置（键盘隐藏后）
+    private func restoreEdgeToEdge() {
+        guard let wv = webView else { return }
+        
+        // 重新设置关键属性
+        if #available(iOS 11.0, *) {
+            wv.scrollView.contentInsetAdjustmentBehavior = .never
+        }
+        wv.scrollView.automaticallyAdjustsScrollIndicatorInsets = false
+        
+        // 重置 scrollView 的 contentInset
+        wv.scrollView.contentInset = .zero
+        wv.scrollView.scrollIndicatorInsets = .zero
     }
 }
